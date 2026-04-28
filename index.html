@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voxel Bastion - Tower Defense</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      overflow: hidden;
+      background: #1a0a2e;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #eeddff;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #game-canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* === Top Bar === */
+    #top-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 16px;
+      background: rgba(20, 10, 40, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(100, 80, 160, 0.3);
+      z-index: 100;
+    }
+
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .stat-icon { font-size: 18px; }
+    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+
+    #hp-stat .stat-icon { color: #ff4466; }
+    #gold-stat .stat-icon { color: #ffcc00; }
+    #hp-val { color: #ff6688; }
+    #gold-val { color: #ffdd44; }
+    #wave-val { color: #44ffcc; font-size: 18px; }
+
+    #wave-timer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      opacity: 0.8;
+    }
+
+    #top-buttons {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-small {
+      padding: 4px 12px;
+      background: rgba(60, 40, 100, 0.6);
+      border: 1px solid rgba(100, 80, 160, 0.4);
+      border-radius: 6px;
+      color: #ccbbee;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-small:hover {
+      background: rgba(80, 60, 140, 0.7);
+      border-color: rgba(140, 120, 200, 0.6);
+      color: #eeddff;
+    }
+
+    /* === Tower Panel === */
+    #tower-panel {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: rgba(20, 10, 40, 0.8);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(100, 80, 160, 0.3);
+      border-radius: 12px;
+      z-index: 100;
+    }
+
+    .panel-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      opacity: 0.5;
+      writing-mode: vertical-lr;
+      text-orientation: mixed;
+    }
+
+    .panel-hint {
+      font-size: 10px;
+      opacity: 0.35;
+      line-height: 1.4;
+      max-width: 120px;
+    }
+
+    .tower-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: rgba(40, 25, 70, 0.7);
+      border: 2px solid rgba(80, 60, 130, 0.4);
+      border-radius: 8px;
+      color: #ccbbee;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tower-btn:hover {
+      background: rgba(60, 40, 100, 0.8);
+      border-color: rgba(120, 100, 180, 0.6);
+      transform: translateY(-2px);
+    }
+
+    .tower-btn.selected {
+      border-color: #44ffcc;
+      box-shadow: 0 0 12px rgba(68, 255, 204, 0.3);
+      background: rgba(40, 60, 80, 0.6);
+    }
+
+    .tower-btn.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .tower-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .tower-info { text-align: left; }
+    .tower-name { font-size: 12px; font-weight: 600; }
+    .tower-cost { font-size: 11px; color: #ffdd44; }
+
+    /* === Upgrade Panel === */
+    #upgrade-panel {
+      position: fixed;
+      right: 16px;
+      top: 64px;
+      width: 220px;
+      padding: 14px;
+      background: rgba(20, 10, 40, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(100, 80, 160, 0.3);
+      border-radius: 12px;
+      z-index: 100;
+    }
+
+    #upgrade-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #44ffcc;
+      margin-bottom: 8px;
+    }
+
+    #upgrade-stats {
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+      opacity: 0.75;
+    }
+
+    .stat-val { color: #88ddff; font-weight: 600; }
+    .sell-val { color: #ffaa66; }
+
+    .stat-special {
+      font-size: 11px;
+      color: #44ffcc;
+      padding: 1px 0;
+    }
+
+    .stat-divider {
+      border-top: 1px solid rgba(100, 80, 160, 0.2);
+      margin: 4px 0;
+    }
+
+    #upgrade-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .btn-upgrade {
+      padding: 8px 10px;
+      background: rgba(40, 25, 70, 0.7);
+      border: 1px solid rgba(100, 80, 160, 0.4);
+      border-radius: 6px;
+      color: #ccbbee;
+      font-size: 11px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s;
+    }
+
+    .btn-upgrade:hover {
+      background: rgba(60, 40, 100, 0.8);
+      border-color: #44ffcc;
+    }
+
+    .btn-upgrade strong { color: #88ddff; display: block; }
+    .upgrade-traits { display: block; font-size: 10px; color: #44ffcc; opacity: 0.8; margin-top: 2px; }
+    .upgrade-cost { display: block; font-size: 11px; color: #ffdd44; margin-top: 2px; }
+
+    .upgraded-label {
+      font-size: 11px;
+      color: #44ffcc;
+      opacity: 0.7;
+      text-align: center;
+      padding: 4px;
+    }
+
+    .btn-sell {
+      width: 100%;
+      padding: 6px;
+      background: rgba(80, 20, 30, 0.5);
+      border: 1px solid rgba(200, 60, 80, 0.3);
+      border-radius: 6px;
+      color: #ff8899;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-sell:hover {
+      background: rgba(120, 30, 40, 0.6);
+      border-color: rgba(255, 80, 100, 0.5);
+    }
+
+    /* === Game Overlay === */
+    #game-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 5, 20, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+    }
+
+    #overlay-content {
+      text-align: center;
+    }
+
+    #overlay-title {
+      font-size: 48px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      margin-bottom: 16px;
+      text-shadow: 0 0 30px currentColor;
+    }
+
+    #overlay-text {
+      font-size: 16px;
+      opacity: 0.7;
+      margin-bottom: 24px;
+    }
+
+    .btn-big {
+      padding: 12px 32px;
+      background: rgba(40, 25, 70, 0.7);
+      border: 2px solid #44ffcc;
+      border-radius: 8px;
+      color: #44ffcc;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-big:hover {
+      background: rgba(68, 255, 204, 0.15);
+      box-shadow: 0 0 20px rgba(68, 255, 204, 0.3);
+      transform: scale(1.05);
+    }
+
+    /* === Wave Announcement === */
+    #wave-announce {
+      position: fixed;
+      top: 30%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 36px;
+      font-weight: 900;
+      color: #44ffcc;
+      text-shadow: 0 0 30px rgba(68, 255, 204, 0.5);
+      letter-spacing: 4px;
+      transition: opacity 0.5s;
+      z-index: 150;
+      pointer-events: none;
+    }
+
+    /* === Animations === */
+    @keyframes flashGold {
+      0% { color: #ffdd44; transform: scale(1); }
+      50% { color: #ffffff; transform: scale(1.3); }
+      100% { color: #ffdd44; transform: scale(1); }
+    }
+    @keyframes flashRed {
+      0% { color: #ff6688; }
+      50% { color: #ff0033; transform: scale(1.3); }
+      100% { color: #ff6688; }
+    }
+    .flash-gold { animation: flashGold 0.3s ease-out; }
+    .flash-red { animation: flashRed 0.3s ease-out; }
+
+    @keyframes waveSlide {
+      0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+      20% { transform: translateX(-50%) scale(1.1); opacity: 1; }
+      80% { transform: translateX(-50%) scale(1); opacity: 1; }
+      100% { transform: translateX(-50%) scale(0.8); opacity: 0; }
+    }
+    #wave-announce.active {
+      animation: waveSlide 2s ease-out forwards;
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
