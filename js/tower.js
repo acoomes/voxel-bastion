@@ -3,6 +3,27 @@ import * as THREE from 'three';
 import { TOWERS, GRID } from './config.js';
 import { buildVoxelGroup } from './voxel-models.js';
 
+export const TARGET_MODES = ['first', 'last', 'strong', 'weak', 'close'];
+export const TARGET_MODE_LABELS = {
+  first:  { short: 'F', name: 'First',  hint: 'Furthest along path' },
+  last:   { short: 'L', name: 'Last',   hint: 'Closest to spawn' },
+  strong: { short: 'S', name: 'Strong', hint: 'Highest HP' },
+  weak:   { short: 'W', name: 'Weak',   hint: 'Lowest HP' },
+  close:  { short: 'C', name: 'Close',  hint: 'Nearest to tower' },
+};
+
+function targetScore(tower, enemy, mode) {
+  const progress = enemy.waypointIdx * 1000 + (enemy.pathProgress || 0);
+  switch (mode) {
+    case 'last':   return -progress;
+    case 'strong': return enemy.hp;
+    case 'weak':   return -enemy.hp;
+    case 'close':  return -tower.position.distanceToSquared(enemy.position);
+    case 'first':
+    default:       return progress;
+  }
+}
+
 export class TowerManager {
   constructor(scene, particles, audio) {
     this.scene = scene;
@@ -54,6 +75,8 @@ export class TowerManager {
       // Upgrade
       upgradePath: null, // null, 'A', or 'B'
       totalInvested: cfg.cost,
+      // Targeting
+      targetMode: 'first',
       // Type-specific
       instant: cfg.instant || false,
       slowAmount: cfg.slowAmount || 0,
@@ -164,6 +187,16 @@ export class TowerManager {
     tower.rangeMesh.material.opacity = show ? 0.2 : 0;
   }
 
+  setTargetMode(tower, mode) {
+    if (TARGET_MODES.includes(mode)) tower.targetMode = mode;
+  }
+
+  cycleTargetMode(tower) {
+    const idx = TARGET_MODES.indexOf(tower.targetMode);
+    tower.targetMode = TARGET_MODES[(idx + 1) % TARGET_MODES.length];
+    return tower.targetMode;
+  }
+
   update(dt, enemies, projectileManager, enemyManager) {
     for (const tower of this.towers) {
       tower.fireCooldown -= dt;
@@ -209,13 +242,11 @@ export class TowerManager {
 
       // Beam towers
       if (tower.beam) {
-        // Find targets in range
+        // Find targets in range, ordered by current target mode
+        const rangeSq = tower.range * tower.range;
         const inRange = enemies
-          .filter(e => e.active && tower.position.distanceTo(e.position) <= tower.range)
-          .sort((a, b) => {
-            // Prioritize furthest along path
-            return b.waypointIdx - a.waypointIdx || b.pathProgress - a.pathProgress;
-          });
+          .filter(e => e.active && tower.position.distanceToSquared(e.position) <= rangeSq)
+          .sort((a, b) => targetScore(tower, b, tower.targetMode) - targetScore(tower, a, tower.targetMode));
 
         if (inRange.length > 0) {
           const chainTargets = inRange.slice(0, tower.chainCount + 1);
@@ -244,18 +275,17 @@ export class TowerManager {
       // Standard targeting
       if (tower.fireCooldown > 0) continue;
 
-      // Find best target (furthest along path in range)
+      // Find best target according to mode
+      const rangeSq = tower.range * tower.range;
       let bestTarget = null;
-      let bestProgress = -1;
+      let bestScore = -Infinity;
       for (const enemy of enemies) {
         if (!enemy.active || enemy.frozen) continue;
-        const dist = tower.position.distanceTo(enemy.position);
-        if (dist <= tower.range) {
-          const progress = enemy.waypointIdx * 1000 + (enemy.pathProgress || 0);
-          if (progress > bestProgress) {
-            bestProgress = progress;
-            bestTarget = enemy;
-          }
+        if (tower.position.distanceToSquared(enemy.position) > rangeSq) continue;
+        const score = targetScore(tower, enemy, tower.targetMode);
+        if (score > bestScore) {
+          bestScore = score;
+          bestTarget = enemy;
         }
       }
 

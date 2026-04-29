@@ -1,13 +1,26 @@
 // game.js - Game state machine, economy, wave control
-import { GAME, WAVES, ENEMIES, TOWERS } from './config.js';
+import { GAME, WAVES, ENEMIES, TOWERS, isBossWave, bossWaveIndex } from './config.js';
+
+const BEST_WAVE_KEY = 'voxel-bastion-best-wave';
+
+function loadBestWave() {
+  try {
+    const v = parseInt(localStorage.getItem(BEST_WAVE_KEY), 10);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  } catch (_) { return 0; }
+}
+
+function saveBestWave(v) {
+  try { localStorage.setItem(BEST_WAVE_KEY, String(v)); } catch (_) {}
+}
 
 export class GameState {
   constructor() {
     this.hp = GAME.START_HP;
     this.gold = GAME.START_GOLD;
     this.wave = 0;
-    this.maxWaves = 20;
-    this.state = 'building'; // building, spawning, fighting, gameover, victory
+    this.bestWave = loadBestWave();
+    this.state = 'building'; // building, spawning, fighting, gameover
     this.paused = false;
     this.speed = 1;
 
@@ -16,6 +29,7 @@ export class GameState {
     this.spawnTimer = 0;
     this.waveCountdown = 0;
     this.waveEnemiesAlive = 0;
+    this.upcomingQueue = null; // pre-generated next wave for preview
 
     // Callbacks
     this.onHPChange = null;
@@ -37,18 +51,43 @@ export class GameState {
     this.spawnTimer = 0;
     this.waveCountdown = GAME.WAVE_COUNTDOWN;
     this.waveEnemiesAlive = 0;
+    this.upcomingQueue = null;
   }
 
   startNextWave() {
     this.wave++;
+    if (this.wave > this.bestWave) {
+      this.bestWave = this.wave;
+      saveBestWave(this.bestWave);
+    }
     this.state = 'spawning';
-    this.spawnQueue = this._generateWave(this.wave);
+    // Use cached preview if it matches the wave we're about to spawn
+    if (this.upcomingQueue) {
+      this.spawnQueue = this.upcomingQueue;
+      this.upcomingQueue = null;
+    } else {
+      this.spawnQueue = this._generateWave(this.wave);
+    }
     this.spawnTimer = 0;
     this.waveEnemiesAlive = 0;
     for (const group of this.spawnQueue) {
       this.waveEnemiesAlive += group.count;
     }
     if (this.onWaveChange) this.onWaveChange(this.wave);
+  }
+
+  // Returns a summary of the next wave without mutating spawn state.
+  // Caches the generated queue so the actual wave matches the preview.
+  peekUpcomingWave() {
+    if (this.state !== 'building') return null;
+    if (!this.upcomingQueue) {
+      this.upcomingQueue = this._generateWave(this.wave + 1);
+    }
+    const counts = {};
+    for (const g of this.upcomingQueue) {
+      counts[g.type] = (counts[g.type] || 0) + g.count;
+    }
+    return { wave: this.wave + 1, counts };
   }
 
   _generateWave(waveNum) {
@@ -64,10 +103,10 @@ export class GameState {
 
     const queue = [];
 
-    // Boss waves
-    if (WAVES.procedural.bossWaves.includes(waveNum)) {
-      const bossIdx = WAVES.procedural.bossWaves.indexOf(waveNum);
-      const scale = WAVES.procedural.bossHPScale[bossIdx] || 1;
+    // Boss waves (every bossInterval starting at firstBossWave, scaling each time)
+    if (isBossWave(waveNum)) {
+      const bossIdx = bossWaveIndex(waveNum);
+      const scale = WAVES.procedural.bossHPBase + bossIdx * WAVES.procedural.bossHPGrowth;
       queue.push({
         type: 'boss',
         count: 1,
@@ -166,12 +205,6 @@ export class GameState {
       // Wave complete
       const bonus = this.getWaveBonus();
       this.addGold(bonus);
-
-      if (this.wave >= this.maxWaves) {
-        this.state = 'victory';
-        if (this.onVictory) this.onVictory();
-        return 'victory';
-      }
 
       this.state = 'building';
       this.waveCountdown = GAME.WAVE_COUNTDOWN;

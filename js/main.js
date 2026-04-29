@@ -107,6 +107,11 @@ ui.callbacks.onSell = () => {
   }
 };
 
+ui.callbacks.onTargetMode = (tower, mode) => {
+  towerManager.setTargetMode(tower, mode);
+  ui.showUpgradePanel(tower);
+};
+
 ui.callbacks.onNextWave = () => {
   if (gameState.state === 'building') {
     startWave();
@@ -156,9 +161,9 @@ function restartGame() {
 
   ui.hideGameOver();
   ui.hideUpgradePanel();
-  ui.updateHUD(gameState.hp, gameState.gold, gameState.wave);
-  ui.showWaveTimer(GAME.WAVE_COUNTDOWN);
+  ui.updateHUD(gameState.hp, gameState.gold, gameState.wave, gameState.bestWave);
   gameState.waveCountdown = GAME.WAVE_COUNTDOWN;
+  ui.showWaveTimer(GAME.WAVE_COUNTDOWN, gameState.peekUpcomingWave());
   selectedPlacementType = null;
   lastSelectedTower = null;
 }
@@ -212,7 +217,7 @@ function fixedUpdate(dt) {
   // Wave countdown during building phase
   if (gameState.state === 'building') {
     gameState.waveCountdown -= dt;
-    ui.showWaveTimer(gameState.waveCountdown);
+    ui.showWaveTimer(gameState.waveCountdown, gameState.peekUpcomingWave());
     if (gameState.waveCountdown <= 0) {
       startWave();
     }
@@ -253,20 +258,15 @@ function fixedUpdate(dt) {
     }
   }
 
-  // Check game over
+  // Check game over (endless mode — only ends on death)
   if (gameState.state === 'gameover') {
     audio.playGameOver();
-    ui.showGameOver(false, gameState.wave);
+    ui.showGameOver(gameState.wave, gameState.bestWave);
     gameState.state = 'gameover_shown';
-  }
-  if (gameState.state === 'victory') {
-    audio.playVictory();
-    ui.showGameOver(true, gameState.wave);
-    gameState.state = 'victory_shown';
   }
 
   // Update HUD
-  ui.updateHUD(gameState.hp, gameState.gold, gameState.wave);
+  ui.updateHUD(gameState.hp, gameState.gold, gameState.wave, gameState.bestWave);
 }
 
 function visualUpdate(dt) {
@@ -366,8 +366,8 @@ function handleClick() {
 }
 
 // Start!
-ui.updateHUD(gameState.hp, gameState.gold, gameState.wave);
-ui.showWaveTimer(GAME.WAVE_COUNTDOWN);
+ui.updateHUD(gameState.hp, gameState.gold, gameState.wave, gameState.bestWave);
 gameState.waveCountdown = GAME.WAVE_COUNTDOWN;
+ui.showWaveTimer(GAME.WAVE_COUNTDOWN, gameState.peekUpcomingWave());
 
 requestAnimationFrame(gameLoop);

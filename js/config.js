@@ -234,10 +234,23 @@ export const WAVES = {
     baseBudget: 150,
     budgetScale: 1.22,
     costs: { sprinter: 5, golem: 25, swarmling: 2, boss: 100 },
-    bossWaves: [10, 15, 20],
-    bossHPScale: [1, 1.5, 2.5],
+    // Endless: boss every 5 waves starting at 10. HP scale grows with boss index.
+    bossInterval: 5,
+    firstBossWave: 10,
+    bossHPBase: 1,
+    bossHPGrowth: 0.5,
   },
 };
+
+export function isBossWave(n) {
+  const { firstBossWave, bossInterval } = WAVES.procedural;
+  return n >= firstBossWave && (n - firstBossWave) % bossInterval === 0;
+}
+
+export function bossWaveIndex(n) {
+  if (!isBossWave(n)) return -1;
+  return Math.floor((n - WAVES.procedural.firstBossWave) / WAVES.procedural.bossInterval);
+}
 
 // Path waypoints (grid coordinates)
 export const PATH_WAYPOINTS = [

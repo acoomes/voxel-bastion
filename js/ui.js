@@ -1,5 +1,6 @@
 // ui.js - HUD, tower panel, upgrade panel (HTML/CSS overlay)
-import { TOWERS, GAME } from './config.js';
+import { TOWERS, GAME, isBossWave } from './config.js';
+import { TARGET_MODES, TARGET_MODE_LABELS } from './tower.js';
 
 export class UI {
   constructor() {
@@ -13,6 +14,7 @@ export class UI {
       onPause: null,
       onSpeed: null,
       onRestart: null,
+      onTargetMode: null,
     };
 
     this._build();
@@ -39,8 +41,13 @@ export class UI {
           <span class="stat-label">WAVE</span>
           <span id="wave-val">0</span>
         </div>
+        <div class="stat" id="best-stat" title="Best wave reached">
+          <span class="stat-label">BEST</span>
+          <span id="best-val">0</span>
+        </div>
         <div id="wave-timer" style="display:none">
           Next wave: <span id="timer-val">15</span>s
+          <span id="wave-preview"></span>
           <button id="btn-next-wave" class="btn-small">Send Now</button>
         </div>
         <div id="top-buttons">
@@ -159,11 +166,12 @@ export class UI {
     if (this.callbacks.onTowerSelect) this.callbacks.onTowerSelect(type);
   }
 
-  updateHUD(hp, gold, wave) {
+  updateHUD(hp, gold, wave, bestWave) {
     if (this._lastGold === undefined) { this._lastGold = -1; this._lastHp = -1; }
     const hpEl = document.getElementById('hp-val');
     const goldEl = document.getElementById('gold-val');
     const waveEl = document.getElementById('wave-val');
+    const bestEl = document.getElementById('best-val');
 
     if (hpEl) {
       hpEl.textContent = hp;
@@ -187,6 +195,7 @@ export class UI {
     }
 
     if (waveEl) waveEl.textContent = wave;
+    if (bestEl && bestWave !== undefined) bestEl.textContent = bestWave;
 
     // Update tower button affordability
     document.querySelectorAll('.tower-btn').forEach(btn => {
@@ -196,16 +205,40 @@ export class UI {
     });
   }
 
-  showWaveTimer(seconds) {
+  showWaveTimer(seconds, preview) {
     const el = document.getElementById('wave-timer');
     const val = document.getElementById('timer-val');
     if (el) el.style.display = 'flex';
     if (val) val.textContent = Math.ceil(seconds);
+    if (preview) this._renderWavePreview(preview);
   }
 
   hideWaveTimer() {
     const el = document.getElementById('wave-timer');
     if (el) el.style.display = 'none';
+    this._lastPreviewWave = null;
+  }
+
+  _renderWavePreview(preview) {
+    if (!preview) return;
+    if (this._lastPreviewWave === preview.wave) return; // already rendered
+    this._lastPreviewWave = preview.wave;
+
+    const el = document.getElementById('wave-preview');
+    if (!el) return;
+
+    const swatch = {
+      sprinter:  '#66eebb',
+      golem:     '#aa66dd',
+      swarmling: '#ff7766',
+      boss:      '#cc44ff',
+    };
+    const order = ['boss', 'golem', 'sprinter', 'swarmling'];
+    const parts = order
+      .filter(t => preview.counts[t])
+      .map(t => `<span class="wp-item"><span class="wp-dot" style="background:${swatch[t] || '#ccc'}"></span>${preview.counts[t]}</span>`);
+
+    el.innerHTML = parts.length ? `<span class="wp-sep">|</span>${parts.join('')}` : '';
   }
 
   showUpgradePanel(tower) {
@@ -244,16 +277,42 @@ export class UI {
     if (tower.freezeChance > 0) specialStats.push(`Freeze: ${Math.round(tower.freezeChance * 100)}%`);
     if (tower.stackDebuff) specialStats.push('Stacking shock');
 
+    const isAura = !!tower.aura;
+    const modeButtons = isAura ? '' : `
+      <div class="stat-divider"></div>
+      <div class="target-mode-row">
+        <span class="target-mode-label">Target</span>
+        <div class="target-mode-buttons">
+          ${TARGET_MODES.map(m => {
+            const lbl = TARGET_MODE_LABELS[m];
+            const sel = tower.targetMode === m ? ' selected' : '';
+            return `<button class="target-mode-btn${sel}" data-mode="${m}" title="${lbl.name} — ${lbl.hint}">${lbl.short}</button>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+
     stats.innerHTML = `
       <div class="stat-row"><span>DPS</span><span class="stat-val">${dps}</span></div>
       <div class="stat-row"><span>Damage</span><span class="stat-val">${tower.damage}</span></div>
       <div class="stat-row"><span>Range</span><span class="stat-val">${tower.range.toFixed(1)}</span></div>
       <div class="stat-row"><span>Fire Rate</span><span class="stat-val">${tower.fireRate.toFixed(1)}/s</span></div>
       ${specialStats.map(s => `<div class="stat-special">${s}</div>`).join('')}
+      ${modeButtons}
       <div class="stat-divider"></div>
       <div class="stat-row"><span>Invested</span><span class="stat-val">${tower.totalInvested}g</span></div>
       <div class="stat-row"><span>Sell for</span><span class="stat-val sell-val">${Math.floor(tower.totalInvested * 0.7)}g</span></div>
     `;
+
+    if (!isAura) {
+      stats.querySelectorAll('.target-mode-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const mode = btn.dataset.mode;
+          if (this.callbacks.onTargetMode) this.callbacks.onTargetMode(tower, mode);
+        });
+      });
+    }
 
     buttons.innerHTML = '';
     if (!tower.upgradePath) {
@@ -298,7 +357,7 @@ export class UI {
     const text = document.getElementById('wave-announce-text');
     if (!el || !text) return;
 
-    const isBoss = [10, 15, 20].includes(waveNum);
+    const isBoss = isBossWave(waveNum);
     text.textContent = isBoss ? `BOSS WAVE ${waveNum}` : `Wave ${waveNum}`;
     text.style.color = isBoss ? '#ff44cc' : '#44ffcc';
 
@@ -313,17 +372,21 @@ export class UI {
     }, 2000);
   }
 
-  showGameOver(won, wave) {
+  showGameOver(wave, bestWave) {
     const overlay = document.getElementById('game-overlay');
     const title = document.getElementById('overlay-title');
     const text = document.getElementById('overlay-text');
     if (!overlay) return;
     overlay.style.display = 'flex';
-    title.textContent = won ? 'VICTORY!' : 'GAME OVER';
-    title.style.color = won ? '#44ffcc' : '#ff4466';
-    text.textContent = won
-      ? `You defended the crystal through all waves!`
-      : `Defeated on wave ${wave}. The crystal has been destroyed.`;
+    title.textContent = 'GAME OVER';
+    title.style.color = '#ff4466';
+
+    const isNewBest = wave >= (bestWave || 0);
+    const bestLine = isNewBest && wave > 0
+      ? `<div style="color:#44ffcc;margin-top:6px">New best wave: ${wave}!</div>`
+      : `<div style="opacity:0.7;margin-top:6px">Best: wave ${bestWave || 0}</div>`;
+
+    text.innerHTML = `Defeated on wave ${wave}. The crystal has been destroyed.${bestLine}`;
   }
 
   hideGameOver() {
@@ -338,7 +401,7 @@ export class UI {
 
   updatePauseButton(paused) {
     const btn = document.getElementById('btn-pause');
-    if (btn) btn.textContent = paused ? '&#9654;' : '&#9646;&#9646;';
+    if (btn) btn.textContent = paused ? '\u25B6' : '\u25AE\u25AE';
   }
 
   updateSoundButton(enabled) {
