@@ -20,24 +20,16 @@ The top item under "Next up" is what the next cycle will pick up.
 
 ## In flight
 
-### Steam competitive research
-- **Type:** research
-- **Branch:** `research/phase-0-comps`
-- **What:** Comparative analysis of 7 reference games (Rogue Tower, Mindustry, Dome Keeper, Backpack Battles, They Are Billions, Kingdom Rush, Bloons TD 6) covering hook, sales/scale, pricing, capsule pattern, trailer first 5s, top negative review theme. Synthesize hook patterns and 3–5 differentiation hypotheses for Voxel Bastion.
-- **Acceptance:** `docs/competitive-research.md` lands; data is sourced (no fabricated numbers); differentiation hypotheses are concrete and defensible.
-- **Status:** background research agent running (kicked off 2026-04-29). Doc will be assembled and PR'd once findings return.
-
----
-
-## Next up
-
 ### Draft three pitch lengths
 - **Type:** doc
 - **Branch:** `doc/phase-0-pitches`
 - **What:** Three pitches for Voxel Bastion — 15-word elevator, 50-word short, 200-word long. All three lead with the differentiator, not the genre. Include 2–3 alternate phrasings of each so user can pick.
 - **Acceptance:** `docs/pitches.md` lands. Each pitch passes a "could this describe a different game?" test — if yes, it's too generic.
-- **Depends on:** Steam competitive research (informs which differentiation angles to lead with)
-- **Notes:** Pitch validation testing (5 non-gamers + 5 TD players) is user-driven; this task only produces the pitches to test.
+- **Status:** PR open ([this PR]). Pitch validation testing is user-driven and unblocks the hook decision.
+
+---
+
+## Next up
 
 ### Draft devlog #1
 - **Type:** doc
@@ -79,7 +71,8 @@ The top item under "Next up" is what the next cycle will pick up.
 
 Most recent first. Trim quarterly.
 
-- **2026-04-29** — Add automation cadence + initial queue ([this PR])
+- **2026-04-29** — Add Phase 0 competitive research (PR #3)
+- **2026-04-29** — Add automation cadence + initial queue (PR #4)
 - **2026-04-29** — Add CLAUDE.md with project context and conventions (PR #2)
 - **2026-04-29** — Add Steam release roadmap and phase-0/phase-1 plans (PR #1)
 - **2026-04-29** — Add tower targeting modes, wave preview, endless mode + persistent best-wave, glyph fix (committed before PR workflow was established; see commit `f3abc96`)
