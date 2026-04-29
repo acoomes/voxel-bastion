@@ -20,12 +20,12 @@ The top item under "Next up" is what the next cycle will pick up.
 
 ## In flight
 
-### Draft three pitch lengths
+### Draft Steam Partner application checklist
 - **Type:** doc
-- **Branch:** `doc/phase-0-pitches`
-- **What:** Three pitches for Voxel Bastion — 15-word elevator, 50-word short, 200-word long. All three lead with the differentiator, not the genre. Include 2–3 alternate phrasings of each so user can pick.
-- **Acceptance:** `docs/pitches.md` lands. Each pitch passes a "could this describe a different game?" test — if yes, it's too generic.
-- **Status:** PR open ([this PR]). Pitch validation testing is user-driven and unblocks the hook decision.
+- **Branch:** `doc/steam-partner-prep`
+- **What:** Step-by-step checklist of what user needs to gather before submitting Steam Partner application: legal entity, bank/tax info, ID verification, $100 fee, expected approval timeline. Include a list of Steam-specific decisions due at submission (game name, store tags, age rating).
+- **Acceptance:** `docs/steam-partner-prep.md` lands. User can sit down and complete the application from this doc.
+- **Status:** PR open ([this PR]). Hook-independent; can run in parallel with pitch validation.
 
 ---
 
@@ -39,12 +39,19 @@ The top item under "Next up" is what the next cycle will pick up.
 - **Depends on:** hook locked (user decision after pitch validation)
 - **Notes:** I don't post; user posts under their identity.
 
-### Draft Steam Partner application checklist
+### Draft Steam page short/long descriptions
 - **Type:** doc
-- **Branch:** `doc/steam-partner-prep`
-- **What:** Step-by-step checklist of what user needs to gather before submitting Steam Partner application: legal entity, bank/tax info, ID verification, $100 fee, expected approval timeline. Include a list of Steam-specific decisions due at submission (game name, store tags, age rating).
-- **Acceptance:** `docs/steam-partner-prep.md` lands. User can sit down and complete the application from this doc.
-- **Notes:** Submission is user-only; this doc removes friction.
+- **Branch:** `doc/steam-page-copy`
+- **What:** Convert the locked pitch into a Steam-page-ready short description (≤300 chars) and long description (~600–1200 chars). Steam's tone, no devlog preamble. Include the canonical Steam tags list and the IARC age-rating answer set we'd give.
+- **Acceptance:** `docs/steam-page-copy.md` lands. Copy is paste-ready for the Steam page builder once Partner approval comes through.
+- **Depends on:** hook locked + pitch variant selected.
+
+### Draft pitch-validation recruitment kit
+- **Type:** doc
+- **Branch:** `doc/pitch-validation-kit`
+- **What:** Templates the user can copy-paste to recruit testers — Discord/Reddit/DM scripts for both non-gamers and TD players, a one-page test protocol, and a results-capture sheet (verbatim reactions, 1–5 curiosity score, comp pattern-match, single confusion point).
+- **Acceptance:** `docs/pitch-validation-kit.md` lands; user can run validation tests without further drafting.
+- **Notes:** Not strictly required — user can run validation conversationally — but reduces friction and improves data quality. Optional priority.
 
 ---
 
@@ -71,6 +78,7 @@ The top item under "Next up" is what the next cycle will pick up.
 
 Most recent first. Trim quarterly.
 
+- **2026-04-29** — Add Phase 0 pitches; advance queue (PR #5)
 - **2026-04-29** — Add Phase 0 competitive research (PR #3)
 - **2026-04-29** — Add automation cadence + initial queue (PR #4)
 - **2026-04-29** — Add CLAUDE.md with project context and conventions (PR #2)
