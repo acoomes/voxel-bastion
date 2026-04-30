@@ -164,7 +164,8 @@ export class ProjectileManager {
     }
 
     // Freeze chance
-    if (proj.freezeChance > 0 && Math.random() < proj.freezeChance && target.active) {
+    const rng = this.gameState ? this.gameState.rng : Math.random;
+    if (proj.freezeChance > 0 && rng() < proj.freezeChance && target.active) {
       this.enemyManager.applyFreeze(target, proj.freezeDuration);
     }
   }

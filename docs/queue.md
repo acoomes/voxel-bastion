@@ -87,16 +87,27 @@ Most recent first. Trim quarterly.
 
 ---
 
-## Backlog (Phase 1 — gated on hook decision)
+## Backlog (Phase 1 — mostly gated on hook decision)
 
-Tracked here for visibility but not picked up by automation until Phase 0 exits. See `docs/phase-1-alpha.md` for the full plan; these are the breakdown of Workstream 1 (the first item that runs after hook lock-in).
+Tracked here for visibility but not picked up by automation until Phase 0 exits. See `docs/phase-1-alpha.md` for the full plan.
 
-- Split `GameState` into `MetaState` (persistent, localStorage) and `RunState` (ephemeral)
-- Add seeded RNG utility (`js/rng.js` — `mulberry32`)
-- Refactor wave generation to consume seeded RNG so previews/replays are deterministic
-- Add `startNewRun(seed?)` and `endRun(reason)` lifecycle methods
-- Persist `MetaState` on every meta change with try/catch (matching the existing `bestWave` pattern)
-- Verification: same seed → same map, same wave compositions, same outcomes given same inputs
+Workstream 1 (foundations) was landed early since it's hook-independent — the state split, seeded RNG, and wave determinism are required by every hook variant:
+
+- [x] Split `GameState` into `MetaState` (persistent) and `RunState` (ephemeral) — `feat/state-and-rng`
+- [x] Add seeded RNG utility (`js/rng.js` — `mulberry32`)
+- [x] Refactor wave generation to consume seeded RNG (verified: same seed → same wave compositions)
+- [x] Add `startNewRun(seed?)` and `endRun(reason)` lifecycle methods
+- [x] Persist `MetaState` on every meta change with try/catch
+- [x] Wire seeded RNG into splitter chance/offset and freeze proc
+- [ ] Procedural map seeded determinism — needs Workstream 2 (proc map gen)
+
+Still gated on hook decision:
+
+- Workstream 2: procedural map generation (consumes the seeded RNG)
+- Workstream 3: voxel destruction
+- Workstream 4: tower roster expansion
+- Workstream 5: enemy roster + counters
+- Workstream 6+: economy, meta hub, acts, balance — see `docs/phase-1-alpha.md`
 
 ---
 

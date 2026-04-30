@@ -29,6 +29,7 @@ const input = new InputManager(canvas, renderer.camera);
 const ui = new UI();
 const gameState = new GameState();
 projectileManager.gameState = gameState;
+enemyManager.gameState = gameState;
 enemyManager.onBossKill = () => renderer.shake(0.5, 0.4);
 
 // Build terrain
