@@ -142,7 +142,6 @@ export class ProjectileManager {
           proj.position.z,
           proj.splash,
           proj.damage * TERRAIN.SPLASH_DAMAGE_RATIO,
-          this.particles,
         );
       }
       // Splash visual

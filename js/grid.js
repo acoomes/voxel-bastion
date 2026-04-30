@@ -28,6 +28,12 @@ export class Grid {
     );
     this.terrainGroup = null;
     this.pathCells = [];
+
+    // Optional fx hooks set by main.js. Grid uses them when destruction
+    // happens so call sites don't have to wire effects themselves.
+    this.particles = null;
+    this.audio = null;
+    this.renderer = null;
   }
 
   // Replace the path. Clears all path/tower/destroyed flags, resets HP, and
@@ -76,8 +82,10 @@ export class Grid {
 
   // Apply radial terrain damage. Damages every empty cell within `radius` of
   // the world-space hit point with quadratic-ish falloff. Path/tower/already-
-  // destroyed cells are skipped. Returns the number of cells newly destroyed.
-  applyDamageAt(worldX, worldZ, radius, damage, particles) {
+  // destroyed cells are skipped. Aggregates fx (one shatter sound + one shake
+  // per call, scaled by destroyed count) so big hits feel proportionally big.
+  // Returns { destroyed, cracked } counts.
+  applyDamageAt(worldX, worldZ, radius, damage) {
     const cellSize = GRID.CELL_SIZE;
     const minCol = Math.max(0, Math.floor((worldX - radius) / cellSize));
     const maxCol = Math.min(this.cols - 1, Math.floor((worldX + radius) / cellSize));
@@ -85,6 +93,7 @@ export class Grid {
     const maxRow = Math.min(this.rows - 1, Math.floor((worldZ + radius) / cellSize));
     const r2 = radius * radius;
     let destroyed = 0;
+    let newlyCracked = 0;
 
     for (let col = minCol; col <= maxCol; col++) {
       for (let row = minRow; row <= maxRow; row++) {
@@ -96,18 +105,54 @@ export class Grid {
         const distSq = dx * dx + dz * dz;
         if (distSq > r2) continue;
         const dist = Math.sqrt(distSq);
-        const falloff = 1 - (dist / radius) * 0.6;
-        if (this._damageCell(col, row, damage * falloff, particles)) {
-          destroyed++;
-        }
+        const falloff = 1 - (dist / radius) * 0.5;
+        const result = this._damageCell(col, row, damage * falloff);
+        if (result.destroyed) destroyed++;
+        if (result.cracked) newlyCracked++;
       }
     }
-    return destroyed;
+
+    if (destroyed > 0) {
+      if (this.audio && this.audio.playTerrainShatter) this.audio.playTerrainShatter(destroyed);
+      if (this.renderer && this.renderer.shake) {
+        const intensity = Math.min(TERRAIN.SHAKE_MAX, destroyed * TERRAIN.SHAKE_PER_DESTROY);
+        this.renderer.shake(intensity, 0.25 + Math.min(0.4, destroyed * 0.04));
+      }
+      if (this.particles && this.particles.spawn) {
+        this._spawnImpactFlash(worldX, worldZ, radius);
+      }
+    } else if (newlyCracked > 0 && this.audio && this.audio.playTerrainCrack) {
+      this.audio.playTerrainCrack();
+    }
+
+    return { destroyed, cracked: newlyCracked };
   }
 
-  // Internal: apply `dmg` to one cell and update its visual state. Returns
-  // true if the hit destroyed the cell.
-  _damageCell(col, row, dmg, particles) {
+  _spawnImpactFlash(worldX, worldZ, radius) {
+    const p = this.particles;
+    const flashCount = Math.min(8, Math.ceil(radius * 2));
+    for (let i = 0; i < flashCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.random() * radius * 0.6;
+      p.spawn({
+        x: worldX + Math.cos(angle) * r,
+        y: GRID.TERRAIN_HEIGHT + 0.1,
+        z: worldZ + Math.sin(angle) * r,
+        vx: 0, vy: 0.3, vz: 0,
+        life: 0.18 + Math.random() * 0.1,
+        scale: 0.18 + Math.random() * 0.1,
+        color: 0xffaa44,
+        gravity: false,
+        shrink: true,
+      });
+    }
+  }
+
+  // Internal: apply `dmg` to one cell, updating its visual state.
+  // Returns { destroyed, cracked } booleans (cracked is only true on the
+  // *first* time the cell crosses a damage threshold this hit).
+  _damageCell(col, row, dmg) {
+    const prevHp = this.cellHP[col][row];
     this.cellHP[col][row] -= dmg;
     const mesh = this.cellMeshes[col][row];
     const hp = this.cellHP[col][row];
@@ -118,30 +163,48 @@ export class Grid {
       this.cellMeshes[col][row] = null;
       if (mesh) {
         if (this.terrainGroup) this.terrainGroup.remove(mesh);
-        if (particles && particles.terrainShatter) {
+        if (this.particles && this.particles.terrainShatter) {
           const cx = col * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5;
           const cz = row * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5;
           const color = mesh.material && mesh.material.color
             ? mesh.material.color.getHex()
             : 0x9988aa;
-          particles.terrainShatter({ x: cx, y: GRID.TERRAIN_HEIGHT * 0.5, z: cz }, color);
+          this.particles.terrainShatter({ x: cx, y: GRID.TERRAIN_HEIGHT * 0.5, z: cz }, color);
         }
       }
-      return true;
+      return { destroyed: true, cracked: false };
     }
 
-    // Cracked: sink the cell visibly. Once-only state change.
-    if (mesh && !mesh.userData.cracked && hp <= TERRAIN.HP_MAX * TERRAIN.CRACK_THRESHOLD) {
-      mesh.userData.cracked = true;
-      mesh.scale.y = 0.55;
-      mesh.position.y = GRID.TERRAIN_HEIGHT * 0.275; // bottom stays at substrate
-      if (mesh.material) {
-        mesh.material.color.multiplyScalar(0.65);
-        mesh.material.emissive.multiplyScalar(0.65);
-        mesh.material.emissiveIntensity = 0.06;
+    let newlyCracked = false;
+    const lightHp = TERRAIN.HP_MAX * TERRAIN.CRACK_LIGHT;
+    const heavyHp = TERRAIN.HP_MAX * TERRAIN.CRACK_HEAVY;
+
+    if (mesh) {
+      // Heavy damage: sunken + scorched
+      if (!mesh.userData.heavy && hp <= heavyHp) {
+        mesh.userData.heavy = true;
+        mesh.userData.cracked = true;
+        mesh.scale.y = 0.4;
+        mesh.position.y = GRID.TERRAIN_HEIGHT * 0.2;
+        if (mesh.material) {
+          mesh.material.color.multiplyScalar(0.5);
+          mesh.material.emissive.setHex(0xff5522);
+          mesh.material.emissiveIntensity = 0.18;
+        }
+        newlyCracked = prevHp > heavyHp;
+      } else if (!mesh.userData.cracked && hp <= lightHp) {
+        // Light crack: slight darken + small sink
+        mesh.userData.cracked = true;
+        mesh.scale.y = 0.7;
+        mesh.position.y = GRID.TERRAIN_HEIGHT * 0.35;
+        if (mesh.material) {
+          mesh.material.color.multiplyScalar(0.75);
+          mesh.material.emissiveIntensity = 0.08;
+        }
+        newlyCracked = prevHp > lightHp;
       }
     }
-    return false;
+    return { destroyed: false, cracked: newlyCracked };
   }
 
   buildTerrainMesh() {

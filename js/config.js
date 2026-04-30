@@ -56,11 +56,14 @@ export const GAME = {
 // Terrain destructibility: each placeable cell has HP. Splash projectiles
 // damage cells in their radius; boss death produces a crater.
 export const TERRAIN = {
-  HP_MAX: 50,
-  CRACK_THRESHOLD: 0.5,            // hp ratio at which the cell visually cracks
-  SPLASH_DAMAGE_RATIO: 0.5,        // fraction of projectile damage that hits terrain
-  BOSS_CRATER_RADIUS: 2.4,
-  BOSS_CRATER_DAMAGE: 120,
+  HP_MAX: 40,
+  CRACK_LIGHT: 0.75,               // hp ratio for first visible damage
+  CRACK_HEAVY: 0.4,                // hp ratio for sunken/scorched look
+  SPLASH_DAMAGE_RATIO: 0.7,        // fraction of projectile damage that hits terrain
+  BOSS_CRATER_RADIUS: 4.2,
+  BOSS_CRATER_DAMAGE: 280,
+  SHAKE_PER_DESTROY: 0.06,         // camera shake per cell destroyed in one hit
+  SHAKE_MAX: 0.6,
 };
 
 export const TOWERS = {

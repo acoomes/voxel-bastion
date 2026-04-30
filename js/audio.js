@@ -142,6 +142,64 @@ export class Audio {
     noise.stop(t + dur);
   }
 
+  // Terrain takes damage but doesn't break: short woody crack
+  playTerrainCrack() {
+    if (!this._ensureCtx()) return;
+    const t = this.ctx.currentTime;
+    const dur = 0.08;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(50, t + dur);
+    gain.gain.setValueAtTime(0.06, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain).connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + dur);
+  }
+
+  // Terrain cell(s) destroyed: low boom + crackly noise burst.
+  // intensity scales with how many cells went down at once.
+  playTerrainShatter(intensity = 1) {
+    if (!this._ensureCtx()) return;
+    const t = this.ctx.currentTime;
+    const scale = Math.min(2.5, 1 + Math.log2(intensity));
+    const dur = 0.25 + 0.06 * scale;
+
+    // Low boom
+    const osc = this.ctx.createOscillator();
+    const oGain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(95, t);
+    osc.frequency.exponentialRampToValueAtTime(35, t + dur);
+    oGain.gain.setValueAtTime(0.16 * scale * 0.7, t);
+    oGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(oGain).connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + dur);
+
+    // Crackly debris noise
+    const bufferSize = Math.floor(this.ctx.sampleRate * dur);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      const decay = Math.pow(1 - i / bufferSize, 1.5);
+      data[i] = (Math.random() * 2 - 1) * decay;
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 500;
+    const nGain = this.ctx.createGain();
+    nGain.gain.setValueAtTime(0.10 * scale * 0.7, t);
+    nGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    noise.connect(filter).connect(nGain).connect(this.masterGain);
+    noise.start(t);
+    noise.stop(t + dur);
+  }
+
   // Wave start: ascending 3-note chime
   playWaveStart() {
     if (!this._ensureCtx()) return;

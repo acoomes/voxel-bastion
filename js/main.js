@@ -32,10 +32,13 @@ const gameState = new GameState();
 projectileManager.gameState = gameState;
 projectileManager.grid = grid;
 enemyManager.gameState = gameState;
+grid.particles = particles;
+grid.audio = audio;
+grid.renderer = renderer;
 enemyManager.onBossKill = (pos) => {
   renderer.shake(0.5, 0.4);
   if (pos) {
-    grid.applyDamageAt(pos.x, pos.z, TERRAIN.BOSS_CRATER_RADIUS, TERRAIN.BOSS_CRATER_DAMAGE, particles);
+    grid.applyDamageAt(pos.x, pos.z, TERRAIN.BOSS_CRATER_RADIUS, TERRAIN.BOSS_CRATER_DAMAGE);
   }
 };
 
