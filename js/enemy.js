@@ -350,9 +350,9 @@ export class EnemyManager {
     }
     this.audio.playDeath(enemy.isBoss);
 
-    // Boss kill callback (camera shake)
+    // Boss kill callback (camera shake + terrain crater)
     if (enemy.isBoss && this.onBossKill) {
-      this.onBossKill();
+      this.onBossKill(enemy.position);
     }
 
     // Swarmling split

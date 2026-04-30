@@ -118,6 +118,30 @@ export class ParticleSystem {
   }
 
   /**
+   * Terrain shatter - chunky burst when a destructible cell is destroyed.
+   */
+  terrainShatter(position, color) {
+    const count = Math.floor(14 * this.qualityScale);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.5 + Math.random() * 2.5;
+      this.spawn({
+        x: position.x + (Math.random() - 0.5) * 0.7,
+        y: position.y + Math.random() * 0.25,
+        z: position.z + (Math.random() - 0.5) * 0.7,
+        vx: Math.cos(angle) * speed,
+        vy: 1.2 + Math.random() * 2.5,
+        vz: Math.sin(angle) * speed,
+        life: 0.6 + Math.random() * 0.5,
+        scale: 0.10 + Math.random() * 0.06,
+        color,
+        gravity: true,
+        shrink: true,
+      });
+    }
+  }
+
+  /**
    * Impact burst - small effect at projectile hit
    */
   impactBurst(position, color, count = 8) {

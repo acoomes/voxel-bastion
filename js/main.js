@@ -1,6 +1,6 @@
 // main.js - Bootstrap, Three.js scene, game loop
 import * as THREE from 'three';
-import { GAME, GRID, TOWERS, ENEMIES, COLORS } from './config.js';
+import { GAME, GRID, TOWERS, ENEMIES, COLORS, TERRAIN } from './config.js';
 import { Renderer } from './renderer.js';
 import { Grid } from './grid.js';
 import { buildPathMesh, buildPathWorldPoints } from './path.js';
@@ -30,8 +30,14 @@ const input = new InputManager(canvas, renderer.camera);
 const ui = new UI();
 const gameState = new GameState();
 projectileManager.gameState = gameState;
+projectileManager.grid = grid;
 enemyManager.gameState = gameState;
-enemyManager.onBossKill = () => renderer.shake(0.5, 0.4);
+enemyManager.onBossKill = (pos) => {
+  renderer.shake(0.5, 0.4);
+  if (pos) {
+    grid.applyDamageAt(pos.x, pos.z, TERRAIN.BOSS_CRATER_RADIUS, TERRAIN.BOSS_CRATER_DAMAGE, particles);
+  }
+};
 
 // Build static scene: grid overlay, base crystal, hover mesh.
 // Path + terrain are seed-dependent and (re)built by setupPath().
