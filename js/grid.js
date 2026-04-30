@@ -11,8 +11,18 @@ export class Grid {
     this.cells = Array.from({ length: this.cols }, () =>
       Array.from({ length: this.rows }, () => 0)
     );
-    this.pathCells = buildPathCells();
-    // Mark path cells
+    this.pathCells = [];
+  }
+
+  // Replace the path. Clears all path/tower flags and re-marks new path cells.
+  // Callers responsible for clearing the actual tower entities (towerManager).
+  rebuildPath(waypoints) {
+    this.pathCells = buildPathCells(waypoints);
+    for (let x = 0; x < this.cols; x++) {
+      for (let z = 0; z < this.rows; z++) {
+        this.cells[x][z] = 0;
+      }
+    }
     for (const c of this.pathCells) {
       if (c.x >= 0 && c.x < this.cols && c.z >= 0 && c.z < this.rows) {
         this.cells[c.x][c.z] = 1;

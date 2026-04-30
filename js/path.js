@@ -1,6 +1,6 @@
-// path.js - Path waypoints & rendering
+// path.js - Path cell expansion and rendering. Pure functions over waypoints.
 import * as THREE from 'three';
-import { PATH_WAYPOINTS, GRID, COLORS } from './config.js';
+import { GRID, COLORS } from './config.js';
 
 // Expand waypoints into a list of grid cells along the path
 function bresenhamLine(x0, z0, x1, z1) {
@@ -21,12 +21,12 @@ function bresenhamLine(x0, z0, x1, z1) {
   return cells;
 }
 
-export function buildPathCells() {
+export function buildPathCells(waypoints) {
   const cells = [];
   const cellSet = new Set();
-  for (let i = 0; i < PATH_WAYPOINTS.length - 1; i++) {
-    const a = PATH_WAYPOINTS[i];
-    const b = PATH_WAYPOINTS[i + 1];
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const a = waypoints[i];
+    const b = waypoints[i + 1];
     const line = bresenhamLine(a.x, a.z, b.x, b.z);
     for (const c of line) {
       const key = `${c.x},${c.z}`;
@@ -58,8 +58,8 @@ export function buildPathCells() {
 }
 
 // Build world-space waypoints for enemy path following
-export function buildPathWorldPoints() {
-  return PATH_WAYPOINTS.map(p => new THREE.Vector3(
+export function buildPathWorldPoints(waypoints) {
+  return waypoints.map(p => new THREE.Vector3(
     p.x * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5,
     GRID.TERRAIN_HEIGHT - GRID.PATH_DEPTH + 0.15,
     p.z * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5
@@ -67,8 +67,8 @@ export function buildPathWorldPoints() {
 }
 
 // Build path mesh
-export function buildPathMesh() {
-  const pathCells = buildPathCells();
+export function buildPathMesh(waypoints) {
+  const pathCells = buildPathCells(waypoints);
   const group = new THREE.Group();
 
   // Path channel (slightly recessed)
@@ -146,8 +146,8 @@ export function buildPathMesh() {
   return group;
 }
 
-export function getPathLength() {
-  const pts = buildPathWorldPoints();
+export function getPathLength(waypoints) {
+  const pts = buildPathWorldPoints(waypoints);
   let len = 0;
   for (let i = 1; i < pts.length; i++) {
     len += pts[i].distanceTo(pts[i - 1]);

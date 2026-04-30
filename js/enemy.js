@@ -1,7 +1,6 @@
 // enemy.js - Enemy logic: path following, health, status effects
 import * as THREE from 'three';
 import { ENEMIES, GRID } from './config.js';
-import { buildPathWorldPoints } from './path.js';
 import { parseModelDef } from './voxel-models.js';
 
 const _dir = new THREE.Vector3();
@@ -30,7 +29,7 @@ export class EnemyManager {
     this.scene = scene;
     this.particles = particles;
     this.audio = audio;
-    this.pathPoints = buildPathWorldPoints();
+    this.pathPoints = [];
     this.enemies = [];
     this.onBossKill = null; // callback for camera shake etc.
 
