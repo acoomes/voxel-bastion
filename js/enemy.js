@@ -357,14 +357,15 @@ export class EnemyManager {
     }
 
     // Swarmling split
-    if (enemy.splitChance > 0 && Math.random() < enemy.splitChance) {
+    const rng = this.gameState ? this.gameState.rng : Math.random;
+    if (enemy.splitChance > 0 && rng() < enemy.splitChance) {
       for (let s = 0; s < enemy.splitCount; s++) {
         const wpIdx = Math.max(0, Math.min(enemy.waypointIdx, this.pathPoints.length - 2));
         const split = this.spawn('swarmling', wpIdx);
         if (split) {
           split.position.copy(enemy.position);
-          split.position.x += (Math.random() - 0.5) * 0.5;
-          split.position.z += (Math.random() - 0.5) * 0.5;
+          split.position.x += (rng() - 0.5) * 0.5;
+          split.position.z += (rng() - 0.5) * 0.5;
           split.group.position.copy(split.position);
           split.hp = ENEMIES.swarmling.hp * 0.5;
           split.maxHp = split.hp;
