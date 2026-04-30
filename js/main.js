@@ -4,6 +4,7 @@ import { GAME, GRID, TOWERS, ENEMIES, COLORS } from './config.js';
 import { Renderer } from './renderer.js';
 import { Grid } from './grid.js';
 import { buildPathMesh, buildPathWorldPoints } from './path.js';
+import { generatePathWaypoints } from './path-gen.js';
 import { buildVoxelGroup } from './voxel-models.js';
 import { GameState } from './game.js';
 import { EnemyManager } from './enemy.js';
@@ -32,25 +33,43 @@ projectileManager.gameState = gameState;
 enemyManager.gameState = gameState;
 enemyManager.onBossKill = () => renderer.shake(0.5, 0.4);
 
-// Build terrain
-const terrain = grid.buildTerrainMesh();
-scene.add(terrain);
-
+// Build static scene: grid overlay, base crystal, hover mesh.
+// Path + terrain are seed-dependent and (re)built by setupPath().
 const gridOverlay = grid.buildGridOverlay();
 scene.add(gridOverlay);
 
-const pathMesh = buildPathMesh();
-scene.add(pathMesh);
-
 scene.add(input.hoverMesh);
 
-// Player base crystal
-const pathPoints = buildPathWorldPoints();
-const basePos = pathPoints[pathPoints.length - 1];
 const baseCrystal = buildVoxelGroup('base_crystal');
-baseCrystal.position.copy(basePos);
 baseCrystal.position.y = GRID.TERRAIN_HEIGHT;
 scene.add(baseCrystal);
+
+let terrainMesh = null;
+let pathMesh = null;
+
+// Generate the path from the current run's seeded RNG and rebuild every
+// scene asset that depends on it: grid path-cell flags, terrain mesh
+// (excludes path tiles), path mesh, enemy waypoints, base crystal position.
+function setupPath() {
+  const waypoints = generatePathWaypoints(gameState.rng, GRID.COLS, GRID.ROWS);
+  grid.rebuildPath(waypoints);
+
+  if (terrainMesh) scene.remove(terrainMesh);
+  terrainMesh = grid.buildTerrainMesh();
+  scene.add(terrainMesh);
+
+  if (pathMesh) scene.remove(pathMesh);
+  pathMesh = buildPathMesh(waypoints);
+  scene.add(pathMesh);
+
+  const worldPoints = buildPathWorldPoints(waypoints);
+  enemyManager.pathPoints = worldPoints;
+
+  const basePos = worldPoints[worldPoints.length - 1];
+  baseCrystal.position.set(basePos.x, GRID.TERRAIN_HEIGHT, basePos.z);
+}
+
+setupPath();
 
 // Ambient sparkles around the map
 const sparkleMeshes = [];
@@ -153,12 +172,9 @@ function restartGame() {
   towerManager.clearAll();
   projectileManager.clearAll();
 
-  // Reset grid
-  for (let x = 0; x < grid.cols; x++) {
-    for (let z = 0; z < grid.rows; z++) {
-      if (grid.cells[x][z] === 2) grid.cells[x][z] = 0;
-    }
-  }
+  // New seed → new path. setupPath() re-rebuilds grid flags, terrain, path
+  // mesh, enemy waypoints, and base crystal position from the new run's RNG.
+  setupPath();
 
   ui.hideGameOver();
   ui.hideUpgradePanel();

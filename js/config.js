@@ -252,14 +252,3 @@ export function bossWaveIndex(n) {
   return Math.floor((n - WAVES.procedural.firstBossWave) / WAVES.procedural.bossInterval);
 }
 
-// Path waypoints (grid coordinates)
-export const PATH_WAYPOINTS = [
-  { x: 0, z: 2 },
-  { x: 6, z: 2 },
-  { x: 6, z: 7 },
-  { x: 18, z: 7 },
-  { x: 18, z: 12 },
-  { x: 10, z: 12 },
-  { x: 10, z: 14 },
-  { x: 23, z: 14 },
-];

@@ -99,11 +99,17 @@ Workstream 1 (foundations) was landed early since it's hook-independent — the 
 - [x] Add `startNewRun(seed?)` and `endRun(reason)` lifecycle methods
 - [x] Persist `MetaState` on every meta change with try/catch
 - [x] Wire seeded RNG into splitter chance/offset and freeze proc
-- [ ] Procedural map seeded determinism — needs Workstream 2 (proc map gen)
+
+Workstream 2 (procedural maps) — first slice landed; consumes the seeded RNG:
+
+- [x] Procedural path generator (`js/path-gen.js`) — manhattan-style, left-edge to right-edge, uses run.rng — `feat/proc-path`
+- [x] Path/grid/enemy paths rebuild on every `startNewRun` — verified across 100 seeds: connected, in-bounds, 260-318 placeable cells
+- [ ] Path variation: backward x segments, branching paths, multiple spawn points
+- [ ] Procedural terrain features: pillars, height variation, decorative voxels
+- [ ] Map size variation per run
 
 Still gated on hook decision:
 
-- Workstream 2: procedural map generation (consumes the seeded RNG)
 - Workstream 3: voxel destruction
 - Workstream 4: tower roster expansion
 - Workstream 5: enemy roster + counters
