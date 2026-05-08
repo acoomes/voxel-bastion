@@ -262,9 +262,11 @@ export class UI {
     el.innerHTML = parts.length ? `<span class="wp-sep">|</span>${parts.join('')}` : '';
   }
 
-  showUpgradePanel(tower, sellRatio = 0.7) {
+  showUpgradePanel(tower, sellRatio = 0.7, runMods = null) {
     this.selectedTower = tower;
     this._sellRatio = sellRatio;
+    const rangeBonus = runMods ? runMods.rangeBonus : 0;
+    const fireRateMul = runMods ? runMods.fireRateMul : 1;
     this.selectedTowerType = null;
     document.querySelectorAll('.tower-btn').forEach(btn => btn.classList.remove('selected'));
 
@@ -314,11 +316,20 @@ export class UI {
       </div>
     `;
 
+    const effRange = tower.range + rangeBonus;
+    const effRate = tower.fireRate * fireRateMul;
+    const rangeStr = rangeBonus > 0
+      ? `${effRange.toFixed(1)} <span style="opacity:0.5">(+${rangeBonus.toFixed(1)})</span>`
+      : effRange.toFixed(1);
+    const rateStr = fireRateMul > 1.001
+      ? `${effRate.toFixed(1)}/s <span style="opacity:0.5">(+${Math.round((fireRateMul - 1) * 100)}%)</span>`
+      : `${effRate.toFixed(1)}/s`;
+
     stats.innerHTML = `
       <div class="stat-row"><span>DPS</span><span class="stat-val">${dps}</span></div>
       <div class="stat-row"><span>Damage</span><span class="stat-val">${tower.damage}</span></div>
-      <div class="stat-row"><span>Range</span><span class="stat-val">${tower.range.toFixed(1)}</span></div>
-      <div class="stat-row"><span>Fire Rate</span><span class="stat-val">${tower.fireRate.toFixed(1)}/s</span></div>
+      <div class="stat-row"><span>Range</span><span class="stat-val">${rangeStr}</span></div>
+      <div class="stat-row"><span>Fire Rate</span><span class="stat-val">${rateStr}</span></div>
       ${specialStats.map(s => `<div class="stat-special">${s}</div>`).join('')}
       ${modeButtons}
       <div class="stat-divider"></div>
@@ -474,7 +485,11 @@ export class UI {
       el.classList.remove('show', 'bump');
       return;
     }
-    el.textContent = `x${combo} COMBO`;
+    let bonusText = '';
+    if (combo >= 10) bonusText = ' +5g';
+    else if (combo >= 5) bonusText = ' +2g';
+    else if (combo >= 3) bonusText = ' +1g';
+    el.textContent = `x${combo} COMBO${bonusText}`;
     el.classList.add('show');
     el.classList.remove('bump');
     void el.offsetWidth;

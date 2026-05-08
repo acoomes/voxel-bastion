@@ -152,7 +152,8 @@ ui.callbacks.onUpgrade = (tower, path) => {
     const success = towerManager.upgradeTower(tower, path);
     if (success) {
       gameState.spendGold(upCfg.cost);
-      ui.showUpgradePanel(tower, gameState.run.sellRatio);
+      towerManager.showRange(tower, true, gameState.run.rangeBonus);
+      ui.showUpgradePanel(tower, gameState.run.sellRatio, gameState.run);
     }
   }
 };
@@ -167,6 +168,8 @@ ui.callbacks.onSell = () => {
 };
 
 ui.callbacks.onPick = (kind, choice) => {
+  audio.init();
+  audio.playUpgrade();
   if (kind === 'boon') {
     gameState.applyBoon(choice);
     ui.setActiveBoon(choice);
@@ -179,6 +182,11 @@ ui.callbacks.onPick = (kind, choice) => {
     ui.updatePauseButton(false);
   }
   ui.updateHUD(gameState.hp, gameState.gold, gameState.wave, gameState.bestWave);
+  // Refresh selected tower's range ring + upgrade panel to reflect blessings.
+  if (lastSelectedTower) {
+    towerManager.showRange(lastSelectedTower, true, gameState.run.rangeBonus);
+    ui.showUpgradePanel(lastSelectedTower, gameState.run.sellRatio, gameState.run);
+  }
 };
 
 gameState.onBlessingOffer = (waveNum, choices) => {
@@ -203,7 +211,7 @@ function offerStartingBoon() {
 
 ui.callbacks.onTargetMode = (tower, mode) => {
   towerManager.setTargetMode(tower, mode);
-  ui.showUpgradePanel(tower, gameState.run.sellRatio);
+  ui.showUpgradePanel(tower, gameState.run.sellRatio, gameState.run);
 };
 
 ui.callbacks.onNextWave = () => {
@@ -450,7 +458,7 @@ function handleClick() {
       }
       lastSelectedTower = tower;
       towerManager.showRange(tower, true, gameState.run.rangeBonus);
-      ui.showUpgradePanel(tower, gameState.run.sellRatio);
+      ui.showUpgradePanel(tower, gameState.run.sellRatio, gameState.run);
       return;
     }
   }

@@ -12,7 +12,6 @@ const S = COLORS.SPRINTER_MINT;
 const W = COLORS.SWARMLING_CORAL;
 const B = 0xcc44ff; // boss
 const R = 0xddaaff; // wraith
-const R = 0xddaaff; // wraith
 
 const MODEL_DEFS = {
   crystal: {
