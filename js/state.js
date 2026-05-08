@@ -72,5 +72,25 @@ export class RunState {
 
     this.endedAt = null; // wave number at run end, set by endRun()
     this.endReason = null;
+
+    // --- Roguelite layer ---
+    // Boon picked at run start (one of BOONS). null until the player picks.
+    this.boon = null;
+    // Blessings picked over the run, in order.
+    this.blessings = [];
+    // Folded modifiers — reapplied from boon + blessings on every change.
+    this.towerDmgMul = { crystal: 1, frost: 1, spark: 1 };
+    this.rangeBonus = 0;
+    this.fireRateMul = 1;
+    this.critChanceBonus = 0;
+    this.sellRatio = GAME.SELL_RATIO;
+    this.waveBonusFlat = 0;
+
+    // Pending blessing pick (waveNum at which a pick is awaiting).
+    this.pendingBlessingWave = null;
+
+    // Combo / kill streak — ephemeral, reset between runs.
+    this.combo = 0;
+    this.comboTimer = 0;
   }
 }

@@ -159,11 +159,11 @@ export class TowerManager {
     return true;
   }
 
-  sellTower(tower, grid) {
+  sellTower(tower, grid, sellRatio = 0.7) {
     const idx = this.towers.indexOf(tower);
     if (idx < 0) return 0;
 
-    const refund = Math.floor(tower.totalInvested * 0.7);
+    const refund = Math.floor(tower.totalInvested * sellRatio);
 
     // Remove from scene
     this.scene.remove(tower.group);
@@ -183,7 +183,12 @@ export class TowerManager {
     return refund;
   }
 
-  showRange(tower, show) {
+  showRange(tower, show, rangeBonus = 0) {
+    if (show) {
+      const r = tower.range + rangeBonus;
+      tower.rangeMesh.geometry.dispose();
+      tower.rangeMesh.geometry = new THREE.RingGeometry(r - 0.05, r, 32);
+    }
     tower.rangeMesh.material.opacity = show ? 0.2 : 0;
   }
 
@@ -198,6 +203,9 @@ export class TowerManager {
   }
 
   update(dt, enemies, projectileManager, enemyManager) {
+    const gs = projectileManager.gameState;
+    const mods = gs ? gs.mods : {};
+
     for (const tower of this.towers) {
       tower.fireCooldown -= dt;
       tower.fireFlashTimer -= dt;
@@ -205,21 +213,33 @@ export class TowerManager {
       // Idle animation - gentle bob
       tower.group.position.y = tower.position.y + Math.sin(performance.now() / 1000 * 1.5 + tower.col * 2) * 0.015;
 
+      // Effective range/fire rate fold in mid-run blessings.
+      const rangeBonus = gs ? gs.run.rangeBonus : 0;
+      const fireRateMul = gs ? gs.run.fireRateMul : 1;
+
       // Aura towers apply slow continuously
       if (tower.aura && tower.auraRange > 0) {
+        const auraR = tower.auraRange + rangeBonus;
         let hitAny = false;
         for (const enemy of enemies) {
           if (!enemy.active) continue;
           const dist = tower.position.distanceTo(enemy.position);
-          if (dist <= tower.auraRange) {
+          if (dist <= auraR) {
             enemyManager.applySlow(enemy, tower.slowAmount, 0.5);
             hitAny = true;
             // Aura DPS: damage per tick (every 0.5s)
             if (tower.fireCooldown <= 0) {
-              const dead = enemyManager.damage(enemy, tower.damage, tower.type);
+              const { amount, isCrit } = gs
+                ? gs.rollDamage(tower.type, tower.damage)
+                : { amount: tower.damage, isCrit: false };
+              const dead = enemyManager.damage(enemy, amount, tower.type, isCrit);
               if (dead) {
                 const r = enemyManager.killEnemy(enemy);
-                if (r.reward > 0) projectileManager.gameState.addGold(r.reward);
+                if (r.reward > 0 && gs) {
+                  gs.addGold(gs.rewardGold(r.reward));
+                  const bonus = gs.registerKill(enemy.position);
+                  if (bonus > 0) gs.addGold(bonus);
+                }
               }
             }
           }
@@ -243,7 +263,8 @@ export class TowerManager {
       // Beam towers
       if (tower.beam) {
         // Find targets in range, ordered by current target mode
-        const rangeSq = tower.range * tower.range;
+        const effRange = tower.range + rangeBonus;
+        const rangeSq = effRange * effRange;
         const inRange = enemies
           .filter(e => e.active && tower.position.distanceToSquared(e.position) <= rangeSq)
           .sort((a, b) => targetScore(tower, b, tower.targetMode) - targetScore(tower, a, tower.targetMode));
@@ -252,12 +273,18 @@ export class TowerManager {
           const chainTargets = inRange.slice(0, tower.chainCount + 1);
           // Apply DPS to chained targets (damage is DPS, multiply by dt)
           for (let i = 0; i < chainTargets.length; i++) {
-            const dmg = tower.damage * (1 - i * 0.15) * dt;
-            const dead = enemyManager.damage(chainTargets[i], dmg, tower.type);
+            const baseDmg = tower.damage * (1 - i * 0.15) * dt;
+            // Beams skip crit (continuous DPS) — apply mults only.
+            const typeMul = (gs && gs.run.towerDmgMul[tower.type]) || 1;
+            const globalMul = mods.damageMul || 1;
+            const dmg = baseDmg * typeMul * globalMul;
+            const dead = enemyManager.damage(chainTargets[i], dmg, tower.type, false);
             if (dead) {
               const result = enemyManager.killEnemy(chainTargets[i]);
-              if (result.reward > 0) {
-                projectileManager.gameState.addGold(result.reward);
+              if (result.reward > 0 && gs) {
+                gs.addGold(gs.rewardGold(result.reward));
+                const bonus = gs.registerKill(chainTargets[i].position);
+                if (bonus > 0) gs.addGold(bonus);
               }
             }
           }
@@ -276,7 +303,8 @@ export class TowerManager {
       if (tower.fireCooldown > 0) continue;
 
       // Find best target according to mode
-      const rangeSq = tower.range * tower.range;
+      const effRange = tower.range + rangeBonus;
+      const rangeSq = effRange * effRange;
       let bestTarget = null;
       let bestScore = -Infinity;
       for (const enemy of enemies) {
@@ -297,14 +325,29 @@ export class TowerManager {
       tower.group.rotation.y = Math.atan2(dx, dz);
 
       // Fire!
-      tower.fireCooldown = 1 / tower.fireRate;
+      tower.fireCooldown = 1 / (tower.fireRate * fireRateMul);
       tower.fireFlashTimer = 0.1;
+
+      const killAndReward = (enemy) => {
+        const r = enemyManager.killEnemy(enemy);
+        if (gs && r.reward > 0) {
+          gs.addGold(gs.rewardGold(r.reward));
+          const bonus = gs.registerKill(enemy.position);
+          if (bonus > 0) gs.addGold(bonus);
+        }
+      };
 
       if (tower.instant) {
         // Instant hit (spark/lightning)
-        let dead = enemyManager.damage(bestTarget, tower.damage, 'spark');
+        const { amount, isCrit } = gs
+          ? gs.rollDamage(tower.type, tower.damage)
+          : { amount: tower.damage, isCrit: false };
+        const dead = enemyManager.damage(bestTarget, amount, 'spark', isCrit);
         if (tower.stackDebuff) {
           enemyManager.applySparkStack(bestTarget);
+        }
+        if (mods.universalSlow) {
+          enemyManager.applySlow(bestTarget, mods.universalSlow.amount, mods.universalSlow.duration);
         }
 
         // Chain lightning
@@ -325,11 +368,14 @@ export class TowerManager {
             if (!nearest) break;
             hit.add(nearest);
             this.particles.lightningBolt(current.position, nearest.position, TOWERS[tower.type].color);
-            const chainDead = enemyManager.damage(nearest, tower.damage * 0.7, 'spark');
-            if (chainDead) {
-              const r = enemyManager.killEnemy(nearest);
-              if (r.reward > 0) projectileManager.gameState.addGold(r.reward);
+            const cd = gs
+              ? gs.rollDamage(tower.type, tower.damage * 0.7)
+              : { amount: tower.damage * 0.7, isCrit: false };
+            const chainDead = enemyManager.damage(nearest, cd.amount, 'spark', cd.isCrit);
+            if (mods.universalSlow) {
+              enemyManager.applySlow(nearest, mods.universalSlow.amount, mods.universalSlow.duration);
             }
+            if (chainDead) killAndReward(nearest);
             current = nearest;
           }
         }
@@ -339,10 +385,7 @@ export class TowerManager {
         this.particles.muzzleFlash(tower.position, TOWERS[tower.type].color);
         this.audio.playSparkShot();
 
-        if (dead) {
-          const r = enemyManager.killEnemy(bestTarget);
-          if (r.reward > 0) projectileManager.gameState.addGold(r.reward);
-        }
+        if (dead) killAndReward(bestTarget);
       } else {
         // Projectile-based
         projectileManager.spawn(tower, bestTarget);

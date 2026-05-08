@@ -212,6 +212,18 @@ export const ENEMIES = {
     shieldReduction: 0.8,
     isBoss: true,
   },
+  wraith: {
+    name: 'Wraith',
+    hp: 40,
+    speed: 3.0,
+    reward: 8,
+    damage: 2,
+    size: [3, 3, 3],
+    color: 0xddaaff,
+    voxelScale: 0.13,
+    slowImmune: true,
+    ghostly: true,
+  },
 };
 
 // Hand-designed waves 1-5, then procedural
@@ -233,7 +245,8 @@ export const WAVES = {
   procedural: {
     baseBudget: 150,
     budgetScale: 1.22,
-    costs: { sprinter: 5, golem: 25, swarmling: 2, boss: 100 },
+    costs: { sprinter: 5, golem: 25, swarmling: 2, boss: 100, wraith: 8 },
+    wraithFirstWave: 8,
     // Endless: boss every 5 waves starting at 10. HP scale grows with boss index.
     bossInterval: 5,
     firstBossWave: 10,
@@ -251,4 +264,119 @@ export function bossWaveIndex(n) {
   if (!isBossWave(n)) return -1;
   return Math.floor((n - WAVES.procedural.firstBossWave) / WAVES.procedural.bossInterval);
 }
+
+// Combat tuning shared by towers + projectiles.
+export const COMBAT = {
+  baseCritChance: 0.08,
+  critMultiplier: 1.6,
+  comboWindow: 1.5, // seconds between kills to keep combo alive
+  comboBonusG: { 3: 1, 5: 2, 10: 5 }, // extra gold per kill at combo>=key
+};
+
+// Run-start Boons. Player picks one of three at the start of every run.
+// `apply(run)` mutates the RunState before wave 1.
+// `mods` are read by gameplay systems each frame.
+export const BOONS = [
+  {
+    id: 'bountiful',
+    name: 'Bountiful',
+    desc: '+50% gold from kills, but start with 25% less HP.',
+    apply(run) { run.hp = Math.max(1, Math.round(run.hp * 0.75)); },
+    mods: { goldMul: 1.5 },
+  },
+  {
+    id: 'cryomancer',
+    name: 'Cryomancer',
+    desc: 'All hits apply a 15% slow for 1.5s, regardless of tower.',
+    mods: { universalSlow: { amount: 0.15, duration: 1.5 } },
+  },
+  {
+    id: 'volatile',
+    name: 'Volatile',
+    desc: 'Slain enemies explode for 25 damage to neighbors.',
+    mods: { volatileSplash: { damage: 25, radius: 1.4 } },
+  },
+  {
+    id: 'hardened',
+    name: 'Hardened',
+    desc: '+50% starting HP, but 25% less starting gold.',
+    apply(run) {
+      run.hp = Math.round(run.hp * 1.5);
+      run.gold = Math.round(run.gold * 0.75);
+    },
+    mods: {},
+  },
+  {
+    id: 'glass-cannon',
+    name: 'Glass Cannon',
+    desc: '+25% tower damage; leaks deal +50% HP damage.',
+    mods: { damageMul: 1.25, leakMul: 1.5 },
+  },
+  {
+    id: 'quick-study',
+    name: 'Quick Study',
+    desc: 'Wave-clear gold bonus is doubled.',
+    mods: { waveBonusMul: 2 },
+  },
+];
+
+// Mid-run Blessings. Offered every BLESSING_INTERVAL waves; player picks one.
+// `apply(run, gameState)` runs when the choice is confirmed.
+export const BLESSING_INTERVAL = 3;
+export const BLESSINGS = [
+  {
+    id: 'crystal-power',
+    name: 'Sharper Crystals',
+    desc: '+15% damage to Crystal towers.',
+    apply(run) { run.towerDmgMul.crystal *= 1.15; },
+  },
+  {
+    id: 'frost-power',
+    name: 'Deeper Cold',
+    desc: '+15% damage to Frost towers.',
+    apply(run) { run.towerDmgMul.frost *= 1.15; },
+  },
+  {
+    id: 'spark-power',
+    name: 'Brighter Spark',
+    desc: '+15% damage to Spark towers.',
+    apply(run) { run.towerDmgMul.spark *= 1.15; },
+  },
+  {
+    id: 'reach',
+    name: 'Long Reach',
+    desc: '+0.5 range to all towers.',
+    apply(run) { run.rangeBonus += 0.5; },
+  },
+  {
+    id: 'haste',
+    name: 'Battle Tempo',
+    desc: '+10% fire rate to all towers.',
+    apply(run) { run.fireRateMul *= 1.1; },
+  },
+  {
+    id: 'tribute',
+    name: 'Tribute',
+    desc: '+100 gold, immediately.',
+    apply(run, gs) { gs.addGold(100); },
+  },
+  {
+    id: 'precision',
+    name: 'Precision',
+    desc: '+5% crit chance.',
+    apply(run) { run.critChanceBonus += 0.05; },
+  },
+  {
+    id: 'fence',
+    name: 'Fair Trade',
+    desc: 'Sell ratio rises from 70% to 85%.',
+    apply(run) { run.sellRatio = Math.max(run.sellRatio, 0.85); },
+  },
+  {
+    id: 'rally',
+    name: 'Rallying Cry',
+    desc: 'Wave-clear bonus +25g, permanently.',
+    apply(run) { run.waveBonusFlat += 25; },
+  },
+];
 

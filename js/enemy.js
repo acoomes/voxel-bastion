@@ -113,6 +113,19 @@ export class EnemyManager {
       container.add(shieldMesh);
     }
 
+    // Ghostly enemies render translucent.
+    if (cfg.ghostly) {
+      modelGroup.children.forEach(child => {
+        // Switch to a per-enemy transparent material clone so we don't bleed into the cache.
+        if (child.material) {
+          const m = child.material.clone();
+          m.transparent = true;
+          m.opacity = 0.55;
+          child.material = m;
+        }
+      });
+    }
+
     this.scene.add(container);
     const startPos = this.pathPoints[Math.min(waypointIdx, this.pathPoints.length - 1)].clone();
 
@@ -132,6 +145,8 @@ export class EnemyManager {
       reward: cfg.reward,
       damage: cfg.damage,
       isBoss: cfg.isBoss || false,
+      slowImmune: !!cfg.slowImmune,
+      ghostly: !!cfg.ghostly,
       // Path
       waypointIdx: Math.min(waypointIdx, this.pathPoints.length - 2),
       pathProgress: 0,
@@ -295,7 +310,7 @@ export class EnemyManager {
     });
   }
 
-  damage(enemy, amount, source) {
+  damage(enemy, amount, source, isCrit = false) {
     if (!enemy.active) return false;
 
     // Shield reduction
@@ -314,11 +329,16 @@ export class EnemyManager {
     enemy.hitFlashTimer = 0.08;
     this._setModelEmissive(enemy, 0.9);
 
+    // Floating damage number
+    if (this.onDamage) {
+      this.onDamage(enemy, amount, isCrit);
+    }
+
     return enemy.hp <= 0;
   }
 
   applySlow(enemy, amount, duration) {
-    if (!enemy.active) return;
+    if (!enemy.active || enemy.slowImmune) return;
     if (amount > enemy.slowAmount) {
       enemy.slowAmount = amount;
     }
@@ -355,6 +375,39 @@ export class EnemyManager {
       this.onBossKill();
     }
 
+    // Volatile boon — chain damage to neighbors on death.
+    const mods = this.gameState ? this.gameState.mods : {};
+    if (mods.volatileSplash) {
+      const radius = mods.volatileSplash.radius;
+      const dmg = mods.volatileSplash.damage;
+      const r2 = radius * radius;
+      for (const e of this.enemies) {
+        if (!e.active || e === enemy) continue;
+        if (e.position.distanceToSquared(enemy.position) <= r2) {
+          const dead = this.damage(e, dmg, 'volatile', false);
+          if (dead) {
+            // Recursively kill, but do not let one volatile kill grant boon-multiplied gold beyond once.
+            const r = this.killEnemy(e);
+            if (r.reward > 0 && this.gameState) {
+              this.gameState.addGold(this.gameState.rewardGold(r.reward));
+            }
+          }
+        }
+      }
+      // Visual ring
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        this.particles.spawn({
+          x: enemy.position.x + Math.cos(a) * radius * 0.5,
+          y: enemy.position.y + 0.4,
+          z: enemy.position.z + Math.sin(a) * radius * 0.5,
+          vx: Math.cos(a) * 2, vy: 1.2, vz: Math.sin(a) * 2,
+          life: 0.4, scale: 0.08,
+          color: 0xff8844, gravity: false, shrink: true,
+        });
+      }
+    }
+
     // Swarmling split
     const rng = this.gameState ? this.gameState.rng : Math.random;
     if (enemy.splitChance > 0 && rng() < enemy.splitChance) {
@@ -375,6 +428,8 @@ export class EnemyManager {
       }
     }
 
+    if (this.onKill) this.onKill(enemy);
+
     this._removeEnemy(enemy);
     return { reward, splits };
   }
@@ -388,7 +443,13 @@ export class EnemyManager {
       enemy.shieldMesh.geometry.dispose();
       enemy.shieldMesh.material.dispose();
     }
-    // Note: model voxel meshes use shared cached materials, don't dispose those
+    // Ghostly enemies use cloned per-instance materials; dispose them.
+    if (enemy.ghostly && enemy.modelGroup) {
+      enemy.modelGroup.children.forEach(child => {
+        if (child.material) child.material.dispose();
+      });
+    }
+    // Note: non-ghostly model voxel meshes use shared cached materials, don't dispose those
   }
 
   removeInactive() {
