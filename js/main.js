@@ -32,6 +32,14 @@ const gameState = new GameState();
 projectileManager.gameState = gameState;
 enemyManager.gameState = gameState;
 enemyManager.onBossKill = () => renderer.shake(0.5, 0.4);
+enemyManager.onDamage = (enemy, amount, isCrit) => {
+  ui.spawnDamageNumber(enemy.position, amount, isCrit);
+};
+enemyManager.onKill = (enemy) => {
+  particles.goldKill(enemy.position, enemy.isBoss);
+};
+
+ui.camera = renderer.camera;
 
 // Build static scene: grid overlay, base crystal, hover mesh.
 // Path + terrain are seed-dependent and (re)built by setupPath().
@@ -39,6 +47,37 @@ const gridOverlay = grid.buildGridOverlay();
 scene.add(gridOverlay);
 
 scene.add(input.hoverMesh);
+
+// Range preview ring for tower placement.
+const placementRangeGeo = new THREE.RingGeometry(0.95, 1, 48);
+const placementRangeMat = new THREE.MeshBasicMaterial({
+  color: 0x44ffcc,
+  transparent: true,
+  opacity: 0,
+  side: THREE.DoubleSide,
+});
+const placementRangeMesh = new THREE.Mesh(placementRangeGeo, placementRangeMat);
+placementRangeMesh.rotation.x = -Math.PI / 2;
+placementRangeMesh.position.y = GRID.TERRAIN_HEIGHT + 0.025;
+placementRangeMesh.visible = false;
+scene.add(placementRangeMesh);
+
+function setPlacementRange(type, col, row) {
+  if (!type || col < 0 || col >= GRID.COLS || row < 0 || row >= GRID.ROWS) {
+    placementRangeMesh.visible = false;
+    return;
+  }
+  const baseRange = TOWERS[type].range;
+  const range = baseRange + gameState.run.rangeBonus;
+  placementRangeMesh.visible = true;
+  placementRangeMesh.position.x = col * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5;
+  placementRangeMesh.position.z = row * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5;
+  placementRangeMesh.scale.setScalar(range);
+  placementRangeMat.color.setHex(TOWERS[type].color);
+  // Pulse opacity gently
+  const t = performance.now() / 1000;
+  placementRangeMat.opacity = 0.18 + Math.sin(t * 2.5) * 0.06;
+}
 
 const baseCrystal = buildVoxelGroup('base_crystal');
 baseCrystal.position.y = GRID.TERRAIN_HEIGHT;
@@ -100,7 +139,7 @@ let lastSelectedTower = null;
 ui.callbacks.onTowerSelect = (type) => {
   selectedPlacementType = type;
   if (lastSelectedTower) {
-    towerManager.showRange(lastSelectedTower, false);
+    towerManager.showRange(lastSelectedTower, false, gameState.run.rangeBonus);
     lastSelectedTower = null;
   }
   ui.hideUpgradePanel();
@@ -113,23 +152,58 @@ ui.callbacks.onUpgrade = (tower, path) => {
     const success = towerManager.upgradeTower(tower, path);
     if (success) {
       gameState.spendGold(upCfg.cost);
-      ui.showUpgradePanel(tower);
+      ui.showUpgradePanel(tower, gameState.run.sellRatio);
     }
   }
 };
 
 ui.callbacks.onSell = () => {
   if (ui.selectedTower) {
-    const refund = towerManager.sellTower(ui.selectedTower, grid);
+    const refund = towerManager.sellTower(ui.selectedTower, grid, gameState.run.sellRatio);
     gameState.addGold(refund);
     ui.hideUpgradePanel();
     lastSelectedTower = null;
   }
 };
 
+ui.callbacks.onPick = (kind, choice) => {
+  if (kind === 'boon') {
+    gameState.applyBoon(choice);
+    ui.setActiveBoon(choice);
+  } else if (kind === 'blessing') {
+    gameState.applyBlessing(choice);
+  }
+  // Always resume after a pick.
+  if (gameState.paused) {
+    gameState.togglePause();
+    ui.updatePauseButton(false);
+  }
+  ui.updateHUD(gameState.hp, gameState.gold, gameState.wave, gameState.bestWave);
+};
+
+gameState.onBlessingOffer = (waveNum, choices) => {
+  if (!gameState.paused) {
+    gameState.togglePause();
+    ui.updatePauseButton(true);
+  }
+  ui.showPicker('blessing', 'CHOOSE A BLESSING', choices, `Wave ${waveNum} cleared`);
+};
+
+gameState.onCombo = (combo) => {
+  ui.showCombo(combo);
+};
+
+function offerStartingBoon() {
+  if (!gameState.paused) {
+    gameState.togglePause();
+    ui.updatePauseButton(true);
+  }
+  ui.showPicker('boon', 'CHOOSE A BOON', gameState.offerBoonChoices(), 'Each run begins with one boon.');
+}
+
 ui.callbacks.onTargetMode = (tower, mode) => {
   towerManager.setTargetMode(tower, mode);
-  ui.showUpgradePanel(tower);
+  ui.showUpgradePanel(tower, gameState.run.sellRatio);
 };
 
 ui.callbacks.onNextWave = () => {
@@ -178,11 +252,14 @@ function restartGame() {
 
   ui.hideGameOver();
   ui.hideUpgradePanel();
+  ui.setActiveBoon(null);
+  ui.showCombo(0);
   ui.updateHUD(gameState.hp, gameState.gold, gameState.wave, gameState.bestWave);
   gameState.waveCountdown = GAME.WAVE_COUNTDOWN;
   ui.showWaveTimer(GAME.WAVE_COUNTDOWN, gameState.peekUpcomingWave());
   selectedPlacementType = null;
   lastSelectedTower = null;
+  offerStartingBoon();
 }
 
 // --- Game Loop ---
@@ -231,6 +308,9 @@ function gameLoop(time) {
 }
 
 function fixedUpdate(dt) {
+  // Combo decay
+  gameState.tickCombo(dt);
+
   // Wave countdown during building phase
   if (gameState.state === 'building') {
     gameState.waveCountdown -= dt;
@@ -321,6 +401,7 @@ function visualUpdate(dt) {
 
   // Input hover
   input.updateHover(grid, selectedPlacementType);
+  setPlacementRange(selectedPlacementType, input.mouseGrid.col, input.mouseGrid.row);
 
   // Handle clicks
   if (input.consumeClick()) {
@@ -331,7 +412,7 @@ function visualUpdate(dt) {
     ui.selectTowerType(null);
     ui.hideUpgradePanel();
     if (lastSelectedTower) {
-      towerManager.showRange(lastSelectedTower, false);
+      towerManager.showRange(lastSelectedTower, false, gameState.run.rangeBonus);
       lastSelectedTower = null;
     }
   }
@@ -365,18 +446,18 @@ function handleClick() {
   for (const tower of towerManager.towers) {
     if (tower.col === col && tower.row === row) {
       if (lastSelectedTower && lastSelectedTower !== tower) {
-        towerManager.showRange(lastSelectedTower, false);
+        towerManager.showRange(lastSelectedTower, false, gameState.run.rangeBonus);
       }
       lastSelectedTower = tower;
-      towerManager.showRange(tower, true);
-      ui.showUpgradePanel(tower);
+      towerManager.showRange(tower, true, gameState.run.rangeBonus);
+      ui.showUpgradePanel(tower, gameState.run.sellRatio);
       return;
     }
   }
 
   // Clicked empty space - deselect
   if (lastSelectedTower) {
-    towerManager.showRange(lastSelectedTower, false);
+    towerManager.showRange(lastSelectedTower, false, gameState.run.rangeBonus);
     lastSelectedTower = null;
   }
   ui.hideUpgradePanel();
@@ -386,5 +467,6 @@ function handleClick() {
 ui.updateHUD(gameState.hp, gameState.gold, gameState.wave, gameState.bestWave);
 gameState.waveCountdown = GAME.WAVE_COUNTDOWN;
 ui.showWaveTimer(GAME.WAVE_COUNTDOWN, gameState.peekUpcomingWave());
+offerStartingBoon();
 
 requestAnimationFrame(gameLoop);

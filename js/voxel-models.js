@@ -11,6 +11,8 @@ const P = COLORS.GOLEM_PURPLE;
 const S = COLORS.SPRINTER_MINT;
 const W = COLORS.SWARMLING_CORAL;
 const B = 0xcc44ff; // boss
+const R = 0xddaaff; // wraith
+const R = 0xddaaff; // wraith
 
 const MODEL_DEFS = {
   crystal: {
@@ -92,6 +94,19 @@ const MODEL_DEFS = {
       [[0, 0xff8877], [0xff8877, 0]],
     ],
     scale: 0.1,
+  },
+  wraith: {
+    voxels: [
+      // Trailing wisp
+      [[0, R, 0], [R, R, R], [0, R, 0]],
+      // Shoulders
+      [[R, R, R], [R, 0xeeccff, R], [R, R, R]],
+      // Head
+      [[0, R, 0], [R, 0xffeeff, R], [0, R, 0]],
+      // Crown
+      [[0, 0, 0], [0, 0xffeeff, 0], [0, 0, 0]],
+    ],
+    scale: 0.13,
   },
   boss: {
     voxels: [

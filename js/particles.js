@@ -185,6 +185,29 @@ export class ParticleSystem {
     }
   }
 
+  /**
+   * Gold spark burst on kill — small coin-coloured upward puff.
+   */
+  goldKill(position, big = false) {
+    const count = Math.floor((big ? 10 : 5) * this.qualityScale);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      this.spawn({
+        x: position.x,
+        y: position.y + 0.5,
+        z: position.z,
+        vx: Math.cos(angle) * (0.6 + Math.random() * 0.6),
+        vy: 2 + Math.random() * 1.5,
+        vz: Math.sin(angle) * (0.6 + Math.random() * 0.6),
+        life: 0.5 + Math.random() * 0.4,
+        scale: 0.07 + Math.random() * 0.03,
+        color: 0xffdd44,
+        gravity: true,
+        shrink: true,
+      });
+    }
+  }
+
   setQuality(scale) {
     this.qualityScale = Math.max(0.3, Math.min(1, scale));
   }

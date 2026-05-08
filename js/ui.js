@@ -1,6 +1,9 @@
 // ui.js - HUD, tower panel, upgrade panel (HTML/CSS overlay)
+import * as THREE from 'three';
 import { TOWERS, GAME, isBossWave } from './config.js';
 import { TARGET_MODES, TARGET_MODE_LABELS } from './tower.js';
+
+const _projVec = new THREE.Vector3();
 
 export class UI {
   constructor() {
@@ -15,7 +18,12 @@ export class UI {
       onSpeed: null,
       onRestart: null,
       onTargetMode: null,
+      onPick: null, // (kind, choice) where kind ∈ {'boon','blessing'}
     };
+
+    this.camera = null; // set by main.js for damage-number projection
+    this._dmgPool = [];
+    this._dmgActive = [];
 
     this._build();
   }
@@ -44,6 +52,10 @@ export class UI {
         <div class="stat" id="best-stat" title="Best wave reached">
           <span class="stat-label">BEST</span>
           <span id="best-val">0</span>
+        </div>
+        <div id="boon-chip" style="display:none" title="">
+          <span class="chip-icon">&#9733;</span>
+          <span id="boon-chip-name"></span>
         </div>
         <div id="wave-timer" style="display:none">
           Next wave: <span id="timer-val">15</span>s
@@ -100,6 +112,14 @@ export class UI {
 
       <div id="wave-announce" style="display:none">
         <span id="wave-announce-text"></span>
+      </div>
+
+      <div id="combo-display"></div>
+      <div id="dmg-layer"></div>
+      <div id="pick-modal" style="display:none">
+        <div id="pick-modal-title">CHOOSE A BLESSING</div>
+        <div id="pick-modal-sub"></div>
+        <div id="pick-modal-cards"></div>
       </div>
     `;
     document.body.appendChild(ui);
@@ -232,8 +252,9 @@ export class UI {
       golem:     '#aa66dd',
       swarmling: '#ff7766',
       boss:      '#cc44ff',
+      wraith:    '#ddaaff',
     };
-    const order = ['boss', 'golem', 'sprinter', 'swarmling'];
+    const order = ['boss', 'golem', 'wraith', 'sprinter', 'swarmling'];
     const parts = order
       .filter(t => preview.counts[t])
       .map(t => `<span class="wp-item"><span class="wp-dot" style="background:${swatch[t] || '#ccc'}"></span>${preview.counts[t]}</span>`);
@@ -241,8 +262,9 @@ export class UI {
     el.innerHTML = parts.length ? `<span class="wp-sep">|</span>${parts.join('')}` : '';
   }
 
-  showUpgradePanel(tower) {
+  showUpgradePanel(tower, sellRatio = 0.7) {
     this.selectedTower = tower;
+    this._sellRatio = sellRatio;
     this.selectedTowerType = null;
     document.querySelectorAll('.tower-btn').forEach(btn => btn.classList.remove('selected'));
 
@@ -301,7 +323,7 @@ export class UI {
       ${modeButtons}
       <div class="stat-divider"></div>
       <div class="stat-row"><span>Invested</span><span class="stat-val">${tower.totalInvested}g</span></div>
-      <div class="stat-row"><span>Sell for</span><span class="stat-val sell-val">${Math.floor(tower.totalInvested * 0.7)}g</span></div>
+      <div class="stat-row"><span>Sell for</span><span class="stat-val sell-val">${Math.floor(tower.totalInvested * sellRatio)}g</span></div>
     `;
 
     if (!isAura) {
@@ -407,5 +429,103 @@ export class UI {
   updateSoundButton(enabled) {
     const btn = document.getElementById('btn-sound');
     if (btn) btn.textContent = enabled ? '\u266A' : '\u2715';
+  }
+
+  // === Damage numbers ===
+  // Spawns a floating damage number at a world position, projected to screen.
+  spawnDamageNumber(worldPos, amount, isCrit) {
+    if (!this.camera || amount < 0.5) return;
+    const layer = document.getElementById('dmg-layer');
+    if (!layer) return;
+
+    _projVec.copy(worldPos);
+    _projVec.y += 1; // float above head
+    _projVec.project(this.camera);
+    // Off-screen guard
+    if (_projVec.z < -1 || _projVec.z > 1) return;
+    if (_projVec.x < -1.1 || _projVec.x > 1.1) return;
+    if (_projVec.y < -1.1 || _projVec.y > 1.1) return;
+
+    const sx = (_projVec.x * 0.5 + 0.5) * window.innerWidth;
+    const sy = (1 - (_projVec.y * 0.5 + 0.5)) * window.innerHeight;
+
+    const el = this._dmgPool.pop() || document.createElement('div');
+    el.className = 'dmg-num' + (isCrit ? ' crit' : '');
+    el.textContent = isCrit ? Math.round(amount).toString() + '!' : Math.round(amount).toString();
+    el.style.left = sx + 'px';
+    el.style.top = sy + 'px';
+    // Re-trigger animation
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+    layer.appendChild(el);
+
+    setTimeout(() => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+      this._dmgPool.push(el);
+    }, 800);
+  }
+
+  // === Combo display ===
+  showCombo(combo) {
+    const el = document.getElementById('combo-display');
+    if (!el) return;
+    if (combo < 2) {
+      el.classList.remove('show', 'bump');
+      return;
+    }
+    el.textContent = `x${combo} COMBO`;
+    el.classList.add('show');
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+  }
+
+  // === Boon chip ===
+  setActiveBoon(boon) {
+    const chip = document.getElementById('boon-chip');
+    const name = document.getElementById('boon-chip-name');
+    if (!chip || !name) return;
+    if (!boon) {
+      chip.style.display = 'none';
+      return;
+    }
+    chip.style.display = 'flex';
+    chip.title = boon.desc;
+    name.textContent = boon.name;
+  }
+
+  // === Pick modal (boons / blessings) ===
+  showPicker(kind, title, choices, sub = '') {
+    const modal = document.getElementById('pick-modal');
+    const titleEl = document.getElementById('pick-modal-title');
+    const subEl = document.getElementById('pick-modal-sub');
+    const cards = document.getElementById('pick-modal-cards');
+    if (!modal || !cards) return;
+    modal.style.display = 'flex';
+    titleEl.textContent = title;
+    subEl.textContent = sub;
+    cards.innerHTML = '';
+
+    for (const choice of choices) {
+      const card = document.createElement('div');
+      card.className = 'pick-card';
+      card.innerHTML = `
+        <div class="pick-card-icon">&#10070;</div>
+        <div class="pick-card-name">${choice.name}</div>
+        <div class="pick-card-desc">${choice.desc}</div>
+      `;
+      card.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.hidePicker();
+        if (this.callbacks.onPick) this.callbacks.onPick(kind, choice);
+      });
+      cards.appendChild(card);
+    }
+  }
+
+  hidePicker() {
+    const modal = document.getElementById('pick-modal');
+    if (modal) modal.style.display = 'none';
   }
 }
