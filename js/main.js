@@ -92,6 +92,7 @@ let pathMesh = null;
 function setupPath() {
   const waypoints = generatePathWaypoints(gameState.rng, GRID.COLS, GRID.ROWS);
   grid.rebuildPath(waypoints);
+  grid.placeDecorations(gameState.rng);
 
   if (terrainMesh) scene.remove(terrainMesh);
   terrainMesh = grid.buildTerrainMesh();

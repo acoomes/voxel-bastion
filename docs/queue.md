@@ -20,12 +20,7 @@ The top item under "Next up" is what the next cycle will pick up.
 
 ## In flight
 
-### Draft Steam Partner application checklist
-- **Type:** doc
-- **Branch:** `doc/steam-partner-prep`
-- **What:** Step-by-step checklist of what user needs to gather before submitting Steam Partner application: legal entity, bank/tax info, ID verification, $100 fee, expected approval timeline. Include a list of Steam-specific decisions due at submission (game name, store tags, age rating).
-- **Acceptance:** `docs/steam-partner-prep.md` lands. User can sit down and complete the application from this doc.
-- **Status:** PR open ([this PR]). Hook-independent; can run in parallel with pitch validation.
+(none)
 
 ---
 
@@ -78,6 +73,7 @@ The top item under "Next up" is what the next cycle will pick up.
 
 Most recent first. Trim quarterly.
 
+- **2026-05-08** — Add procedural terrain decorations (pillars, crystals, boulders) — `feat/terrain-decoration`
 - **2026-04-29** — Add Phase 0 pitches; advance queue (PR #5)
 - **2026-04-29** — Add Phase 0 competitive research (PR #3)
 - **2026-04-29** — Add automation cadence + initial queue (PR #4)
@@ -105,7 +101,7 @@ Workstream 2 (procedural maps) — first slice landed; consumes the seeded RNG:
 - [x] Procedural path generator (`js/path-gen.js`) — manhattan-style, left-edge to right-edge, uses run.rng — `feat/proc-path`
 - [x] Path/grid/enemy paths rebuild on every `startNewRun` — verified across 100 seeds: connected, in-bounds, 260-318 placeable cells
 - [ ] Path variation: backward x segments, branching paths, multiple spawn points
-- [ ] Procedural terrain features: pillars, height variation, decorative voxels
+- [x] Procedural terrain features: pillars, crystal shards, boulders — `feat/terrain-decoration`
 - [ ] Map size variation per run
 
 Still gated on hook decision:

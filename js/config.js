@@ -6,6 +6,38 @@ export const GRID = {
   CELL_SIZE: 1,
   TERRAIN_HEIGHT: 0.5,
   PATH_DEPTH: 0.2,
+  DECOR_MIN: 6,
+  DECOR_MAX: 14,
+  DECOR_PATH_MARGIN: 2,
+};
+
+// Decorative structures placed procedurally each run. hpMul is relative to
+// a base HP for integration with the voxel destruction system.
+export const DECORATIONS = {
+  pillar: {
+    width: 0.4,
+    height: 2.4,
+    color: 0x5c6e7a,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
+    hpMul: 1.5,
+  },
+  crystal: {
+    width: 0.65,
+    height: 1.6,
+    color: 0x44ffee,
+    emissive: 0x22ddcc,
+    emissiveIntensity: 0.35,
+    hpMul: 0.8,
+  },
+  boulder: {
+    width: 0.95,
+    height: 0.55,
+    color: 0x8a7a6a,
+    emissive: 0x4a3a2a,
+    emissiveIntensity: 0.04,
+    hpMul: 2.0,
+  },
 };
 
 export const COLORS = {

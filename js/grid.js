@@ -1,46 +1,94 @@
 // grid.js - Grid state, terrain building, placement validation
 import * as THREE from 'three';
-import { GRID, COLORS } from './config.js';
+import { GRID, COLORS, DECORATIONS } from './config.js';
 import { buildPathCells } from './path.js';
+
+// Cell type codes stored in this.cells[col][row]:
+//   0 = empty (placeable)
+//   1 = path (unbuildable)
+//   2 = tower (occupied)
+//   4 = decoration (unbuildable — pillar, crystal shard, or boulder)
+const CELL_EMPTY = 0;
+const CELL_PATH = 1;
+const CELL_TOWER = 2;
+const CELL_DECOR = 4;
 
 export class Grid {
   constructor() {
     this.cols = GRID.COLS;
     this.rows = GRID.ROWS;
-    // 0 = empty, 1 = path, 2 = tower
     this.cells = Array.from({ length: this.cols }, () =>
-      Array.from({ length: this.rows }, () => 0)
+      Array.from({ length: this.rows }, () => CELL_EMPTY)
+    );
+    // Stores which decoration type ('pillar'|'crystal'|'boulder') is at each cell.
+    this.cellDecorType = Array.from({ length: this.cols }, () =>
+      Array.from({ length: this.rows }, () => null)
     );
     this.pathCells = [];
+    this._terrainGroup = null;
   }
 
-  // Replace the path. Clears all path/tower flags and re-marks new path cells.
-  // Callers responsible for clearing the actual tower entities (towerManager).
+  // Replace the path. Clears all flags (including decorations) and re-marks
+  // new path cells. Call placeDecorations(rng) after this before buildTerrainMesh.
   rebuildPath(waypoints) {
     this.pathCells = buildPathCells(waypoints);
     for (let x = 0; x < this.cols; x++) {
       for (let z = 0; z < this.rows; z++) {
-        this.cells[x][z] = 0;
+        this.cells[x][z] = CELL_EMPTY;
+        this.cellDecorType[x][z] = null;
       }
     }
     for (const c of this.pathCells) {
       if (c.x >= 0 && c.x < this.cols && c.z >= 0 && c.z < this.rows) {
-        this.cells[c.x][c.z] = 1;
+        this.cells[c.x][c.z] = CELL_PATH;
       }
+    }
+  }
+
+  // Place decorations using the seeded RNG. Marks CELL_DECOR cells but does
+  // not build meshes yet — call buildTerrainMesh() after this.
+  placeDecorations(rng) {
+    const pathSet = new Set(this.pathCells.map(c => `${c.x},${c.z}`));
+    const margin = GRID.DECOR_PATH_MARGIN;
+
+    // Collect candidates: empty cells at least margin away from any path cell.
+    const candidates = [];
+    for (let x = 0; x < this.cols; x++) {
+      for (let z = 0; z < this.rows; z++) {
+        if (this.cells[x][z] !== CELL_EMPTY) continue;
+        let tooClose = false;
+        outer: for (let dx = -margin; dx <= margin; dx++) {
+          for (let dz = -margin; dz <= margin; dz++) {
+            if (pathSet.has(`${x + dx},${z + dz}`)) { tooClose = true; break outer; }
+          }
+        }
+        if (!tooClose) candidates.push({ x, z });
+      }
+    }
+
+    const types = Object.keys(DECORATIONS);
+    const count = GRID.DECOR_MIN + Math.floor(rng() * (GRID.DECOR_MAX - GRID.DECOR_MIN + 1));
+
+    for (let i = 0; i < count && candidates.length > 0; i++) {
+      const idx = Math.floor(rng() * candidates.length);
+      const { x, z } = candidates.splice(idx, 1)[0];
+      const type = types[Math.floor(rng() * types.length)];
+      this.cells[x][z] = CELL_DECOR;
+      this.cellDecorType[x][z] = type;
     }
   }
 
   canPlace(col, row) {
     if (col < 0 || col >= this.cols || row < 0 || row >= this.rows) return false;
-    return this.cells[col][row] === 0;
+    return this.cells[col][row] === CELL_EMPTY;
   }
 
   placeTower(col, row) {
-    this.cells[col][row] = 2;
+    this.cells[col][row] = CELL_TOWER;
   }
 
   removeTower(col, row) {
-    this.cells[col][row] = 0;
+    if (this.cells[col][row] === CELL_TOWER) this.cells[col][row] = CELL_EMPTY;
   }
 
   worldToGrid(worldX, worldZ) {
@@ -59,29 +107,56 @@ export class Grid {
 
   buildTerrainMesh() {
     const group = new THREE.Group();
+    this._terrainGroup = group;
     const pathSet = new Set(this.pathCells.map(c => `${c.x},${c.z}`));
 
-    // Terrain colors palette
     const terrainColors = [COLORS.TERRAIN_MINT, COLORS.TERRAIN_LAVENDER, COLORS.TERRAIN_CREAM];
-    const geo = new THREE.BoxGeometry(GRID.CELL_SIZE, GRID.TERRAIN_HEIGHT, GRID.CELL_SIZE);
+    const terrainGeo = new THREE.BoxGeometry(GRID.CELL_SIZE, GRID.TERRAIN_HEIGHT, GRID.CELL_SIZE);
 
-    // Noise-based color selection for varied terrain
     for (let x = 0; x < this.cols; x++) {
       for (let z = 0; z < this.rows; z++) {
         if (pathSet.has(`${x},${z}`)) continue;
+        // Decoration cells get their own mesh below; skip normal terrain tile.
+        if (this.cells[x][z] === CELL_DECOR) continue;
+
         const ci = (Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) | 0) % 3;
         const mat = new THREE.MeshLambertMaterial({
           color: terrainColors[ci],
           emissive: terrainColors[ci],
           emissiveIntensity: 0.03,
         });
-        const mesh = new THREE.Mesh(geo, mat);
+        const mesh = new THREE.Mesh(terrainGeo, mat);
         mesh.position.set(
           x * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5,
           GRID.TERRAIN_HEIGHT * 0.5,
           z * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5
         );
         mesh.receiveShadow = true;
+        group.add(mesh);
+      }
+    }
+
+    // Build decoration meshes for CELL_DECOR cells.
+    for (let x = 0; x < this.cols; x++) {
+      for (let z = 0; z < this.rows; z++) {
+        if (this.cells[x][z] !== CELL_DECOR) continue;
+        const type = this.cellDecorType[x][z] || 'boulder';
+        const dcfg = DECORATIONS[type];
+
+        const geo = new THREE.BoxGeometry(dcfg.width, dcfg.height, dcfg.width);
+        const mat = new THREE.MeshLambertMaterial({
+          color: dcfg.color,
+          emissive: dcfg.emissive,
+          emissiveIntensity: dcfg.emissiveIntensity,
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        // Sit flush on top of the terrain surface.
+        mesh.position.set(
+          x * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5,
+          GRID.TERRAIN_HEIGHT + dcfg.height * 0.5,
+          z * GRID.CELL_SIZE + GRID.CELL_SIZE * 0.5
+        );
+        mesh.castShadow = true;
         group.add(mesh);
       }
     }
@@ -127,7 +202,6 @@ export class Grid {
       opacity: 0.06,
     });
 
-    // Vertical lines
     for (let x = 0; x <= this.cols; x++) {
       const points = [
         new THREE.Vector3(x * GRID.CELL_SIZE, GRID.TERRAIN_HEIGHT + 0.01, 0),
@@ -136,7 +210,6 @@ export class Grid {
       const geo = new THREE.BufferGeometry().setFromPoints(points);
       group.add(new THREE.Line(geo, lineMat));
     }
-    // Horizontal lines
     for (let z = 0; z <= this.rows; z++) {
       const points = [
         new THREE.Vector3(0, GRID.TERRAIN_HEIGHT + 0.01, z * GRID.CELL_SIZE),
