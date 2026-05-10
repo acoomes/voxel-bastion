@@ -114,6 +114,15 @@ export class ProjectileManager {
     }
   }
 
+  _killAndReward(enemy) {
+    const result = this.enemyManager.killEnemy(enemy);
+    if (this.gameState && result.reward > 0) {
+      this.gameState.addGold(this.gameState.rewardGold(result.reward));
+      const bonus = this.gameState.registerKill(enemy.position);
+      if (bonus > 0) this.gameState.addGold(bonus);
+    }
+  }
+
   _onHit(proj) {
     const target = proj.target;
 
@@ -127,11 +136,11 @@ export class ProjectileManager {
         const dist = e.position.distanceTo(proj.position);
         if (dist <= proj.splash) {
           const falloff = 1 - (dist / proj.splash) * 0.5;
-          const dead = this.enemyManager.damage(e, proj.damage * falloff, proj.towerType);
-          if (dead) {
-            const r = this.enemyManager.killEnemy(e);
-            if (r.reward > 0 && this.gameState) this.gameState.addGold(r.reward);
-          }
+          const { amount, isCrit } = this.gameState
+            ? this.gameState.rollDamage(proj.towerType, proj.damage * falloff)
+            : { amount: proj.damage * falloff, isCrit: false };
+          const dead = this.enemyManager.damage(e, amount, proj.towerType, isCrit);
+          if (dead) this._killAndReward(e);
         }
       }
       // Splash visual
@@ -151,16 +160,22 @@ export class ProjectileManager {
       }
     } else {
       // Single target damage
-      const dead = this.enemyManager.damage(target, proj.damage, proj.towerType);
-      if (dead) {
-        const r = this.enemyManager.killEnemy(target);
-        if (r.reward > 0 && this.gameState) this.gameState.addGold(r.reward);
-      }
+      const { amount, isCrit } = this.gameState
+        ? this.gameState.rollDamage(proj.towerType, proj.damage)
+        : { amount: proj.damage, isCrit: false };
+      const dead = this.enemyManager.damage(target, amount, proj.towerType, isCrit);
+      if (dead) this._killAndReward(target);
     }
 
     // Slow
     if (proj.slowAmount > 0 && target.active) {
       this.enemyManager.applySlow(target, proj.slowAmount, proj.slowDuration);
+    }
+
+    // Cryomancer boon — universal slow on every projectile hit.
+    const mods = this.gameState ? this.gameState.mods : {};
+    if (mods.universalSlow && target.active) {
+      this.enemyManager.applySlow(target, mods.universalSlow.amount, mods.universalSlow.duration);
     }
 
     // Freeze chance

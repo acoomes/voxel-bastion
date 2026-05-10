@@ -413,6 +413,148 @@
     #wave-announce.active {
       animation: waveSlide 2s ease-out forwards;
     }
+
+    /* === Damage numbers === */
+    #dmg-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 90;
+    }
+    .dmg-num {
+      position: absolute;
+      font-weight: 800;
+      font-size: 14px;
+      color: #ffeecc;
+      text-shadow:
+        0 0 4px rgba(0,0,0,0.7),
+        0 0 8px rgba(0,0,0,0.5);
+      will-change: transform, opacity;
+      animation: dmgFloat 0.8s ease-out forwards;
+      pointer-events: none;
+      letter-spacing: 0.5px;
+    }
+    .dmg-num.crit {
+      color: #ffe066;
+      font-size: 22px;
+      text-shadow: 0 0 6px #ff8800, 0 0 12px rgba(255, 200, 60, 0.8);
+    }
+    .dmg-num.heal { color: #88ffaa; }
+    @keyframes dmgFloat {
+      0%   { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+      15%  { transform: translate(-50%, -10px) scale(1.15); opacity: 1; }
+      80%  { transform: translate(-50%, -36px) scale(1); opacity: 1; }
+      100% { transform: translate(-50%, -56px) scale(0.85); opacity: 0; }
+    }
+
+    /* === Combo display === */
+    #combo-display {
+      position: fixed;
+      top: 56px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 22px;
+      font-weight: 900;
+      color: #ffdd44;
+      text-shadow: 0 0 12px rgba(255, 200, 60, 0.6);
+      letter-spacing: 2px;
+      z-index: 95;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+    }
+    #combo-display.show {
+      opacity: 1;
+      transform: translateX(-50%) scale(1);
+    }
+    #combo-display.bump {
+      animation: comboBump 0.25s ease-out;
+    }
+    @keyframes comboBump {
+      0%   { transform: translateX(-50%) scale(0.85); }
+      40%  { transform: translateX(-50%) scale(1.25); }
+      100% { transform: translateX(-50%) scale(1); }
+    }
+
+    /* === Boon chip === */
+    #boon-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: rgba(120, 80, 200, 0.25);
+      border: 1px solid rgba(180, 140, 255, 0.5);
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #ddccff;
+      cursor: help;
+    }
+    #boon-chip .chip-icon { color: #ffcc66; font-size: 14px; }
+
+    /* === Pick modal (boon / blessing) === */
+    #pick-modal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 24px;
+      background: rgba(10, 5, 25, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 220;
+    }
+    #pick-modal-title {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #44ffcc;
+      text-shadow: 0 0 18px rgba(68, 255, 204, 0.55);
+    }
+    #pick-modal-sub {
+      font-size: 14px;
+      opacity: 0.7;
+      margin-top: -16px;
+    }
+    #pick-modal-cards {
+      display: flex;
+      gap: 16px;
+    }
+    .pick-card {
+      width: 220px;
+      padding: 16px;
+      background: rgba(40, 25, 70, 0.85);
+      border: 2px solid rgba(120, 100, 180, 0.5);
+      border-radius: 12px;
+      color: #eeddff;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.18s;
+    }
+    .pick-card:hover {
+      border-color: #44ffcc;
+      transform: translateY(-4px) scale(1.03);
+      box-shadow: 0 6px 24px rgba(68, 255, 204, 0.35);
+    }
+    .pick-card-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+    .pick-card-name {
+      font-size: 16px;
+      font-weight: 800;
+      color: #ffe066;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .pick-card-desc {
+      font-size: 12px;
+      opacity: 0.9;
+      line-height: 1.45;
+    }
   </style>
 
   <script type="importmap">
