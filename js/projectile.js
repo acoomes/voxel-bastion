@@ -1,6 +1,6 @@
 // projectile.js - Projectile movement & collision
 import * as THREE from 'three';
-import { TOWERS } from './config.js';
+import { TOWERS, TERRAIN } from './config.js';
 
 const _dir = new THREE.Vector3();
 
@@ -10,7 +10,8 @@ export class ProjectileManager {
     this.particles = particles;
     this.enemyManager = enemyManager;
     this.projectiles = [];
-    this.gameState = null; // Set by game.js
+    this.gameState = null; // Set by main.js
+    this.grid = null;      // Set by main.js — used for terrain destruction
 
     // Shared geometry/material for projectiles
     this.meshPool = [];
@@ -133,6 +134,15 @@ export class ProjectileManager {
             if (r.reward > 0 && this.gameState) this.gameState.addGold(r.reward);
           }
         }
+      }
+      // Terrain destruction in the same radius
+      if (this.grid) {
+        this.grid.applyDamageAt(
+          proj.position.x,
+          proj.position.z,
+          proj.splash,
+          proj.damage * TERRAIN.SPLASH_DAMAGE_RATIO,
+        );
       }
       // Splash visual
       for (let s = 0; s < 5; s++) {

@@ -53,6 +53,19 @@ export const GAME = {
   ADAPTIVE_FPS_THRESHOLD: 45,
 };
 
+// Terrain destructibility: each placeable cell has HP. Splash projectiles
+// damage cells in their radius; boss death produces a crater.
+export const TERRAIN = {
+  HP_MAX: 40,
+  CRACK_LIGHT: 0.75,               // hp ratio for first visible damage
+  CRACK_HEAVY: 0.4,                // hp ratio for sunken/scorched look
+  SPLASH_DAMAGE_RATIO: 0.7,        // fraction of projectile damage that hits terrain
+  BOSS_CRATER_RADIUS: 4.2,
+  BOSS_CRATER_DAMAGE: 280,
+  SHAKE_PER_DESTROY: 0.06,         // camera shake per cell destroyed in one hit
+  SHAKE_MAX: 0.6,
+};
+
 export const TOWERS = {
   crystal: {
     name: 'Crystal Cannon',

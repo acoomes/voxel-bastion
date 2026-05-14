@@ -20,12 +20,7 @@ The top item under "Next up" is what the next cycle will pick up.
 
 ## In flight
 
-### Draft Steam Partner application checklist
-- **Type:** doc
-- **Branch:** `doc/steam-partner-prep`
-- **What:** Step-by-step checklist of what user needs to gather before submitting Steam Partner application: legal entity, bank/tax info, ID verification, $100 fee, expected approval timeline. Include a list of Steam-specific decisions due at submission (game name, store tags, age rating).
-- **Acceptance:** `docs/steam-partner-prep.md` lands. User can sit down and complete the application from this doc.
-- **Status:** PR open ([this PR]). Hook-independent; can run in parallel with pitch validation.
+(none — Steam Partner prep, state-and-rng, and proc-path all merged)
 
 ---
 
@@ -78,6 +73,9 @@ The top item under "Next up" is what the next cycle will pick up.
 
 Most recent first. Trim quarterly.
 
+- **2026-04-30** — Add procedural path generation per run (PR #8)
+- **2026-04-30** — Split GameState into MetaState/RunState + add seeded RNG (PR #7)
+- **2026-04-30** — Add Steam Partner application prep checklist (PR #6)
 - **2026-04-29** — Add Phase 0 pitches; advance queue (PR #5)
 - **2026-04-29** — Add Phase 0 competitive research (PR #3)
 - **2026-04-29** — Add automation cadence + initial queue (PR #4)
@@ -108,9 +106,20 @@ Workstream 2 (procedural maps) — first slice landed; consumes the seeded RNG:
 - [ ] Procedural terrain features: pillars, height variation, decorative voxels
 - [ ] Map size variation per run
 
+Workstream 3 (voxel destruction) — first slice landed; this is the recommended-hook foundation:
+
+- [x] Per-cell terrain HP + mesh refs on `Grid` — `feat/voxel-destruction`
+- [x] `Grid.applyDamageAt(worldX, worldZ, radius, damage)` — radial falloff, skips path/tower/destroyed
+- [x] Splash projectiles damage terrain (Nova Cannon's signature moment)
+- [x] Boss death produces a crater
+- [x] Voxel-shatter visual on cell destruction; cells visibly crack at half HP
+- [x] Destroyed cells block tower placement; reset on every new run
+- [ ] Visible cracks/cracks at multiple thresholds (currently just one crack state)
+- [ ] Sapper enemies that tunnel through walls (Workstream 5 dependency)
+- [ ] Player-buildable destructible walls (Workstream 4 dependency)
+
 Still gated on hook decision:
 
-- Workstream 3: voxel destruction
 - Workstream 4: tower roster expansion
 - Workstream 5: enemy roster + counters
 - Workstream 6+: economy, meta hub, acts, balance — see `docs/phase-1-alpha.md`

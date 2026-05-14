@@ -118,6 +118,51 @@ export class ParticleSystem {
   }
 
   /**
+   * Terrain shatter - chunky burst when a destructible cell is destroyed.
+   */
+  terrainShatter(position, color) {
+    // Big chunks (fewer, larger, slower) — read as solid debris
+    const chunkCount = Math.floor(8 * this.qualityScale);
+    for (let i = 0; i < chunkCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1.0 + Math.random() * 3;
+      this.spawn({
+        x: position.x + (Math.random() - 0.5) * 0.6,
+        y: position.y + Math.random() * 0.3,
+        z: position.z + (Math.random() - 0.5) * 0.6,
+        vx: Math.cos(angle) * speed,
+        vy: 2 + Math.random() * 3.5,
+        vz: Math.sin(angle) * speed,
+        life: 0.8 + Math.random() * 0.6,
+        scale: 0.18 + Math.random() * 0.10,
+        color,
+        gravity: true,
+        shrink: false,
+      });
+    }
+    // Dust cloud (lots of small, fast, fading particles for the "poof")
+    const dustCount = Math.floor(20 * this.qualityScale);
+    const dustColor = (color & 0xfefefe) >>> 1; // half-bright variant for dust
+    for (let i = 0; i < dustCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.5 + Math.random() * 2;
+      this.spawn({
+        x: position.x + (Math.random() - 0.5) * 0.9,
+        y: position.y + Math.random() * 0.4,
+        z: position.z + (Math.random() - 0.5) * 0.9,
+        vx: Math.cos(angle) * speed,
+        vy: 0.5 + Math.random() * 1.5,
+        vz: Math.sin(angle) * speed,
+        life: 0.5 + Math.random() * 0.4,
+        scale: 0.08 + Math.random() * 0.06,
+        color: dustColor,
+        gravity: true,
+        shrink: true,
+      });
+    }
+  }
+
+  /**
    * Impact burst - small effect at projectile hit
    */
   impactBurst(position, color, count = 8) {
